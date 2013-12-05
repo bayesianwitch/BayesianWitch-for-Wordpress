@@ -1,7 +1,7 @@
 <?php
   /*
   Plugin Name: BayesianWitch
-  Version: 0
+  Version: 0.1
   Description: -
   Author: Walt Green
   */
@@ -17,11 +17,9 @@ class BayesianWitch{
   private $api_port;
   private $api_full_url;
   private $site_uuid;
+  private $api_key_needed_message = "<p>Please enter domain, client ID and secret ID. These can be found by creating an account on the <a href=\"http://192.241.169.111?source=wordpress\">BayesianWitch.com</a> site. Once an account is created, you create a site, then click the \"Reset and view API keys\" button.</p>";
 
   public function __construct(){
-//    $this->client = 'bc232af6-8609-4e5f-a24a-7231ff7e14e5';
-//    $this->secret = '2d35ffd0-f072-4644-bcf9-d94f91e51734';
-//    $this->domain = 'domain.com';
     $this->get_client();
     $this->get_secret();
     $this->get_domain();
@@ -111,10 +109,10 @@ class BayesianWitch{
     curl_setopt($curl, CURLOPT_VERBOSE, 0);
     curl_setopt($curl, CURLOPT_HEADER, 0);
 
-    curl_setopt($curl, CURLOPT_CUSTOMREQUEST, "PUT"); 
+    curl_setopt($curl, CURLOPT_CUSTOMREQUEST, "PUT");
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
     curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
-    curl_setopt($curl, CURLOPT_HTTPHEADER, array("Content-Type: application/json", "Content-length: ".strlen($data))); 
+    curl_setopt($curl, CURLOPT_HTTPHEADER, array("Content-Type: application/json", "Content-length: ".strlen($data)));
     $result = json_decode(curl_exec($curl));
     return $result;
     // print_r($result); die;
@@ -197,12 +195,14 @@ class BayesianWitch{
     echo '<h4>Client ID:</h4>';
     echo '<input class="input" type="text" name="bw-client" value="'.$this->get_client().'">';
     echo '<div class="clear"></div>';
-    echo '<h4>Secret ID:</h4>';
+    echo '<h4>Secret Key:</h4>';
     echo '<input class="input" type="text" name="bw-secret" value="'.$this->get_secret().'">';
     echo '<div class="clear"></div>';
     echo '<input type="submit" value="Save" class="button">';
     echo '<div class="clear"></div>';
     echo '</div></div>';
+    echo '<p>The client ID and secret ID can be found on <a href=\"http://192.241.169.111?source=wordpress_plugin\" target=\"_blank\">BayesianWitch.com</a>. You need to create an account and then create a site, where the domain of the site is the domain of your blog (e.g. www.myblog.com). The enter "www.myblog.com" (or whatever your real domain is) for the Domain field.</p>';
+    echo '<p>To find the Client ID and Secret Key, click the "Reset and view API keys" button on the BayesianWitch <a href=\"http://192.241.169.111/accounts/profile?source=wordpress_plugin\" target=\"_blank\">profile page</a>.</p>';
     echo '</form>';
   }
 
@@ -238,7 +238,7 @@ class BayesianWitch{
     } else {
       $bandit_tag = $bandit_tag[0];
     }
-    
+
     if($bandit_tag){
       $bandit = $this->get_bandit($bandit_tag);
     }
@@ -302,7 +302,7 @@ class BayesianWitch{
       echo '<span class="input">'.$bandit->variations[0]->tag.'</span>';
     }
     echo '<div class="clear"></div>';
-   
+
     echo '<h4 class="bandit-body">BODY1</h4>';
     if(!$bandit_tag){
       wp_editor('', 'bw-body1', array('textarea_rows' => 4));
@@ -319,7 +319,7 @@ class BayesianWitch{
     }
 
     echo '<div class="clear"></div>';
-   
+
     echo '<h4 class="bandit-body">BODY2</h4>';
     if(!$bandit_tag){
       wp_editor('', 'bw-body2', array('textarea_rows' => 4));
@@ -328,7 +328,7 @@ class BayesianWitch{
     }
     echo '<div class="clear"></div>';
 
-  } 
+  }
 
 
   public function save_metadata($post_id){
@@ -361,9 +361,9 @@ class BayesianWitch{
     // var_dump($bandit_body1); die;
     if($bandit_tag){
       $json = array();
-      $json[] = array('tag' => $bandit_tag1, 'isActive' => true, 'contentAndType' => array('content_type' => 'text/html', 'content' => $bandit_body1)); 
-      $json[] = array('tag' => $bandit_tag2, 'isActive' => true, 'contentAndType' => array('content_type' => 'text/html', 'content' => $bandit_body2)); 
-      $json = json_encode($json, JSON_UNESCAPED_SLASHES);    
+      $json[] = array('tag' => $bandit_tag1, 'isActive' => true, 'contentAndType' => array('content_type' => 'text/html', 'content' => $bandit_body1));
+      $json[] = array('tag' => $bandit_tag2, 'isActive' => true, 'contentAndType' => array('content_type' => 'text/html', 'content' => $bandit_body2));
+      $json = json_encode($json, JSON_UNESCAPED_SLASHES);
       $bandit = $this->send_bandit_update($json, $bandit_tag);
       if($bandit){
         update_post_meta($post->ID, '_bandit_tag', $bandit_tag);
