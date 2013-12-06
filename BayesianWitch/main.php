@@ -3,7 +3,7 @@
   Plugin Name: BayesianWitch
   Version: 0.1
   Description: -
-  Author: Walt Green
+  Author: Vladymir Goryachev
   */
   // TODO: exceptions, clean css, ability to remove a bandit
   // Client ID: bc232af6-8609-4e5f-a24a-7231ff7e14e5
@@ -20,9 +20,6 @@ class BayesianWitch{
   private $api_key_needed_message = "<p>Please enter domain, client ID and secret ID. These can be found by creating an account on the <a href=\"http://192.241.169.111?source=wordpress\">BayesianWitch.com</a> site. Once an account is created, you create a site, then click the \"Reset and view API keys\" button.</p>";
 
   public function __construct(){
-    $this->get_client();
-    $this->get_secret();
-    $this->get_domain();
     $this->js_widget_url = 'http://recommend.bayesianwitch.com';
     $this->api_url = 'http://api.bayesianwitch.com';
     $this->api_port = '8090';
@@ -90,7 +87,6 @@ class BayesianWitch{
   private function get_bandit($bandit_tag){
     $url = $this->api_full_url.'/bandits/'.$this->get_site_uuid().'/'.$bandit_tag.'?client='.$this->get_client().'&secret='.$this->get_secret();
     $result = json_decode(file_get_contents($url));
-    // print_r($result->variations[0]); die;
     return $result;
   }
 
@@ -102,7 +98,6 @@ class BayesianWitch{
 
   private function send_bandit_update($data, $bandit_tag){
     $url = $this->api_url.'/bandits/'.$this->get_site_uuid().'/'.$bandit_tag.'?client='.$this->get_client().'&secret='.$this->get_secret();
-    // print_r($url); die;
     $curl = curl_init();
     curl_setopt($curl, CURLOPT_URL, $url);
     curl_setopt($curl, CURLOPT_PORT , $this->api_port);
@@ -115,7 +110,6 @@ class BayesianWitch{
     curl_setopt($curl, CURLOPT_HTTPHEADER, array("Content-Type: application/json", "Content-length: ".strlen($data)));
     $result = json_decode(curl_exec($curl));
     return $result;
-    // print_r($result); die;
   }
 
   private function validate_tag($tag){
@@ -185,7 +179,7 @@ class BayesianWitch{
     </style>';
     echo '<h2>BayesianWitch plugin settings</h2>';
     if(!$this->is_configured()){
-      echo '<div class="val-error"><p>Please enter domain, client ID and secret ID.</p></div>';
+      echo '<div class="val-error">'.$this->api_key_needed_message.'</div>';
     }
     echo '<form action="" method="post">';
     echo '<div id="bayesianwitch" class="postbox"><div class="inside">';
@@ -218,7 +212,7 @@ class BayesianWitch{
       $js = file_get_contents($url);
       update_option('bw_tracking_js', $js);
     }
-    echo '<script type="text/javascript">'.$js.'</script>';
+    echo '<script type="application/javascript">'.$js.'</script>';
   }
 
   public function add_bandit_meta_box(){
@@ -300,6 +294,7 @@ class BayesianWitch{
       echo '<input class="input" type="text" name="bw-tag1" value="">';
     } else {
       echo '<span class="input">'.$bandit->variations[0]->tag.'</span>';
+      echo '<input type="hidden" name="bw-tag1" value="'.$bandit->variations[0]->tag.'"></input>';
     }
     echo '<div class="clear"></div>';
 
@@ -307,7 +302,7 @@ class BayesianWitch{
     if(!$bandit_tag){
       wp_editor('', 'bw-body1', array('textarea_rows' => 4));
     } else {
-      wp_editor($bandit->variations[0]->contentAndType->content, 'bw-body1', array('textarea_rows' => 4));
+      wp_editor(stripslashes($bandit->variations[0]->contentAndType->content), 'bw-body1', array('textarea_rows' => 4));
     }
     echo '<div class="clear"></div>';
 
@@ -316,6 +311,7 @@ class BayesianWitch{
       echo '<input class="input" type="text" name="bw-tag2" value="">';
     } else {
       echo '<span class="input">'.$bandit->variations[1]->tag.'</span>';
+      echo '<input type="hidden" name="bw-tag2" value="'.$bandit->variations[1]->tag.'"></input>';
     }
 
     echo '<div class="clear"></div>';
@@ -324,7 +320,7 @@ class BayesianWitch{
     if(!$bandit_tag){
       wp_editor('', 'bw-body2', array('textarea_rows' => 4));
     } else {
-      wp_editor($bandit->variations[1]->contentAndType->content, 'bw-body2', array('textarea_rows' => 4));
+      wp_editor(stripslashes($bandit->variations[1]->contentAndType->content), 'bw-body2', array('textarea_rows' => 4));
     }
     echo '<div class="clear"></div>';
 
@@ -335,18 +331,13 @@ class BayesianWitch{
     global $post;
 
     if(!$post) return; //return if it's an auto draft or revision
-    // print_r( $post); die;
-    // print_r( $_POST); die;
-    // echo 'test'; die;
 
     $bandit_tag = get_post_meta($post->ID, '_bandit_tag');
     if($bandit_tag){ // if already exists
       $bandit_tag = $bandit_tag[0];
       $bandit_old = $this->get_bandit($bandit_tag);
-      $bandit_tag1 = $bandit_old->variations[0]->tag;
-      $bandit_tag2 = $bandit_old->variations[1]->tag;
-      // $bandit_body1 = $bandit_old->variations[0]->contentAndType->content;
-      // $bandit_body2 = $bandit_old->variations[1]->contentAndType->content;
+      $bandit_tag1 = $_POST['bw-tag1'];
+      $bandit_tag2 = $_POST['bw-tag2'];
     }else{
       $bandit_tag = $_POST['bw-bandit-tag'];
       $bandit_tag1 = $_POST['bw-tag1'];
@@ -357,13 +348,8 @@ class BayesianWitch{
       return;
     }
 
-    $bandit_body1 = $_POST['bw-body1'];
-    $bandit_body2 = $_POST['bw-body2'];
-
-    if (magic_quotes_gpc || get_magic_quotes_gpc()) {
-      $bandit_body1 = stripslashes($_POST['bw-body1']);
-      $bandit_body2 = stripslashes($_POST['bw-body2']);
-    }
+    $bandit_body1 = stripslashes($_POST['bw-body1']);
+    $bandit_body2 = stripslashes($_POST['bw-body2']);
 
     if($bandit_tag){
       $json = array();
@@ -377,8 +363,8 @@ class BayesianWitch{
         $post_content = $_POST['post_content'];
         if(preg_match('/\[bandit\]/', $post_content)){
           $js_widget = $this->get_js_widget($bandit->bandit->uuid);
-          $bandit_html = '<!--bandit-start--><div id="'.$bandit->bandit->uuid.'"></div>'.'<script type="application/javascript">'.$js_widget.'</script><!--bandit-end-->';
-          $post_content = preg_replace('/\[bandit\]/', $bandit_html, $post_content);
+          $bandit_html = '<!--bandit-start--><div id="'.$bandit->bandit->uuid.'"></div>'.'<script type="application/javascript">'.wp_slash($js_widget).'</script><!--bandit-end-->';
+          $post_content = str_replace('[bandit]', $bandit_html, $post_content);
 
           remove_action('save_post', array($this, 'save_metadata'));
           wp_update_post(array('ID' => $post->ID, 'post_content' => $post_content));
