@@ -218,7 +218,7 @@ class BayesianWitch{
       $js = file_get_contents($url);
       update_option('bw_tracking_js', $js);
     }
-    echo '<script type="application/javascript">'.$js.'</script>';
+    echo '<script type="text/javascript">'.$js.'</script>';
   }
 
   public function add_bandit_meta_box(){
@@ -356,9 +356,15 @@ class BayesianWitch{
       update_option('bw_validation_error', '1');
       return;
     }
+
     $bandit_body1 = $_POST['bw-body1'];
     $bandit_body2 = $_POST['bw-body2'];
-    // var_dump($bandit_body1); die;
+
+    if (magic_quotes_gpc || get_magic_quotes_gpc()) {
+      $bandit_body1 = stripslashes($_POST['bw-body1']);
+      $bandit_body2 = stripslashes($_POST['bw-body2']);
+    }
+
     if($bandit_tag){
       $json = array();
       $json[] = array('tag' => $bandit_tag1, 'isActive' => true, 'contentAndType' => array('content_type' => 'text/html', 'content' => $bandit_body1));
