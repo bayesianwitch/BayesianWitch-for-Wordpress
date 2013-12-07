@@ -31,7 +31,8 @@ class BayesianWitch{
     if($this->is_configured()){ //main functions don't work without credentials
       add_action('add_meta_boxes_post', array($this, 'add_bandit_meta_box'));
       add_action('wp_head', array($this, 'add_tracking_js'));
-      add_action('save_post', array($this, 'save_metadata'));
+//      add_action('save_post', array($this, 'save_metadata'));
+      add_filter( 'wp_insert_post_data', array($this, 'save_metadata'), '99', 2 );
     }
   }
 
@@ -327,25 +328,37 @@ class BayesianWitch{
   }
 
 
-  public function save_metadata($post_id){
+  public function save_metadata($post_san, $post_raw){
     global $post;
 
-    if(!$post) return; //return if it's an auto draft or revision
+    $post_id =  $post_raw['ID'];
+    if(!$post) return $post_san; //return if it's an auto draft or revision
+    define ('WP_POST_REVISIONS', 0);
+// Autosave, do nothing
+    if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE )
+      return $post_san;
+// AJAX? Not used here
+    if ( defined( 'DOING_AJAX' ) && DOING_AJAX )
+      return $post_san;
+// Check user permissions
+    if ( ! current_user_can( 'edit_post', $post_id ) )
+      return $post_san;
+// Return if it's a post revision
+    if ( false !== wp_is_post_revision( $post_id ) )
+      return $post_san;
 
-    $bandit_tag = get_post_meta($post->ID, '_bandit_tag');
-    if($bandit_tag){ // if already exists
-      $bandit_tag = $bandit_tag[0];
-      $bandit_old = $this->get_bandit($bandit_tag);
-      $bandit_tag1 = $_POST['bw-tag1'];
-      $bandit_tag2 = $_POST['bw-tag2'];
+    $bandit_tag_meta = get_post_meta($post->ID, '_bandit_tag');
+    if($bandit_tag_meta){ // if already exists
+      $bandit_tag = $bandit_tag_meta[0];
     }else{
       $bandit_tag = $_POST['bw-bandit-tag'];
-      $bandit_tag1 = $_POST['bw-tag1'];
-      $bandit_tag2 = $_POST['bw-tag2'];
     }
+    $bandit_tag1 = $_POST['bw-tag1'];
+    $bandit_tag2 = $_POST['bw-tag2'];
+
     if(!$this->validate_tag($bandit_tag) || !$this->validate_tag($bandit_tag1) || !$this->validate_tag($bandit_tag2)){
       update_option('bw_validation_error', '1');
-      return;
+      return $post_san;
     }
 
     $bandit_body1 = stripslashes($_POST['bw-body1']);
@@ -358,7 +371,9 @@ class BayesianWitch{
       $json = json_encode($json, JSON_UNESCAPED_SLASHES);
       $bandit = $this->send_bandit_update($json, $bandit_tag);
       if($bandit){
-        update_post_meta($post->ID, '_bandit_tag', $bandit_tag);
+        if(!$bandit_tag_meta){
+          update_post_meta($post->ID, '_bandit_tag', $bandit_tag);
+        }
 
         $post_content = $_POST['post_content'];
         if(preg_match('/\[bandit\]/', $post_content)){
@@ -366,12 +381,14 @@ class BayesianWitch{
           $bandit_html = '<!--bandit-start--><div id="'.$bandit->bandit->uuid.'"></div>'.'<script type="application/javascript">'.wp_slash($js_widget).'</script><!--bandit-end-->';
           $post_content = str_replace('[bandit]', $bandit_html, $post_content);
 
-          remove_action('save_post', array($this, 'save_metadata'));
-          wp_update_post(array('ID' => $post->ID, 'post_content' => $post_content));
-          add_action('save_post', array($this, 'save_metadata'));
+//          remove_action('save_post', array($this, 'save_metadata'));
+//          wp_update_post(array('ID' => $post->ID, 'post_content' => $post_content));
+//          add_action('save_post', array($this, 'save_metadata'));
+          $post_san['post_content'] = $post_content;
         }
       }
     }
+    return $post_san;
   }
 }
 
