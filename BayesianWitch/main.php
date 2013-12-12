@@ -5,7 +5,7 @@
   Description: -
   Author: Vladymir Goryachev
   */
-  // TODO: exceptions, clean css, ability to remove a bandit
+
   // Client ID: bc232af6-8609-4e5f-a24a-7231ff7e14e5
   // Client Secret: 2d35ffd0-f072-4644-bcf9-d94f91e51734
 
@@ -26,13 +26,14 @@ class BayesianWitch{
     $this->api_full_url = $this->api_url.':'.$this->api_port;
 
     add_action('admin_menu', array($this, 'register_submenu'));
+    add_action('admin_enqueue_scripts', array($this, 'load_admin_stylesheet'));
     add_filter('content_edit_pre', array($this, 'filter_bandit_shortcode'), 10, 2 );
 
     if($this->is_configured()){ //main functions don't work without credentials
       add_action('add_meta_boxes_post', array($this, 'add_bandit_meta_box'));
       add_action('wp_head', array($this, 'add_tracking_js'));
 //      add_action('save_post', array($this, 'save_metadata'));
-      add_filter( 'wp_insert_post_data', array($this, 'save_metadata'), '99', 2 );
+      add_filter('wp_insert_post_data', array($this, 'save_metadata'), '99', 2);
     }
   }
 
@@ -125,65 +126,25 @@ class BayesianWitch{
     add_submenu_page('plugins.php', 'BayesianWitch plugin settings', 'BayesianWitch', 10, 'BayesianWitch', array($this, 'render_menu'));
   }
 
+  public function load_admin_stylesheet($hook){
+    wp_register_style('bw_stylesheet', plugins_url('stylesheet.css', __FILE__) );
+    wp_enqueue_style('bw_stylesheet');
+  }
+
   public function render_menu(){
+
     if(isset($_POST['bw-domain'])){
       $this->set_domain($_POST['bw-domain']);
       $this->set_client($_POST['bw-client']);
       $this->set_secret($_POST['bw-secret']);
     }
 
-    echo '<style type="text/css">
-      #bayesianwitch.postbox{
-        max-width: 700px;
-      }
-      #bayesianwitch h4{
-        float: left;
-        width: 10%;
-        margin: 3px 0 0 0;
-      }
-
-      #bayesianwitch h4.bandit-body{
-        margin-top: 30px;
-      }
-
-      #bayesianwitch .wp-editor-wrap{
-        float: right;
-        width: 89%;
-        margin-bottom: 20px;
-      }
-
-      #bayesianwitch .input{
-        float: right;
-        width: 89%;
-        margin-bottom: 20px;
-      }
-
-       #bayesianwitch .button{
-        float: right;
-        width: 70px;
-      }
-
-      #bayesianwitch span.input{
-        margin:3px 0 20px 0;
-      }
-
-      .val-error{
-        background-color: rgb(255, 235, 232);
-        border-color: rgb(204, 0, 0);
-        padding: 0px 0.6em;
-        border-radius: 3px;
-        border-width: 1px;
-        border-style: solid;
-        margin: 20px 0;
-      }
-
-    </style>';
     echo '<h2>BayesianWitch plugin settings</h2>';
     if(!$this->is_configured()){
-      echo '<div class="val-error">'.$this->api_key_needed_message.'</div>';
+      echo '<div class="bw-val-error">'.$this->api_key_needed_message.'</div>';
     }
     echo '<form action="" method="post">';
-    echo '<div id="bayesianwitch" class="postbox"><div class="inside">';
+    echo '<div id="bayesianwitch" class="postbox bw-admin-config"><div class="inside">';
     echo '<h4>Domain:</h4>';
     echo '<input class="input" type="text" name="bw-domain" value="'.$this->get_domain().'">';
     echo '<div class="clear"></div>';
@@ -193,7 +154,7 @@ class BayesianWitch{
     echo '<h4>Secret Key:</h4>';
     echo '<input class="input" type="text" name="bw-secret" value="'.$this->get_secret().'">';
     echo '<div class="clear"></div>';
-    echo '<input type="submit" value="Save" class="button">';
+    echo '<input type="submit" value="Save" class="bw-button">';
     echo '<div class="clear"></div>';
     echo '</div></div>';
     echo '<p>The client ID and secret ID can be found on <a href=\"http://192.241.169.111?source=wordpress_plugin\" target=\"_blank\">BayesianWitch.com</a>. You need to create an account and then create a site, where the domain of the site is the domain of your blog (e.g. www.myblog.com). The enter "www.myblog.com" (or whatever your real domain is) for the Domain field.</p>';
@@ -238,47 +199,8 @@ class BayesianWitch{
       $bandit = $this->get_bandit($bandit_tag);
     }
 
-    echo '<style type="text/css">
-      #bayesianwitch h4{
-        float: left;
-        width: 10%;
-        margin: 3px 0 0 0;
-      }
-
-      #bayesianwitch h4.bandit-body{
-        margin-top: 30px;
-      }
-
-      #bayesianwitch .wp-editor-wrap{
-        float: right;
-        width: 89%;
-        margin-bottom: 20px;
-      }
-
-      #bayesianwitch .input{
-        float: right;
-        width: 89%;
-        margin-bottom: 20px;
-      }
-
-      #bayesianwitch span.input{
-        margin:3px 0 20px 0;
-      }
-
-      #bayesianwitch .val-error{
-        background-color: rgb(255, 235, 232);
-        border-color: rgb(204, 0, 0);
-        padding: 0px 0.6em;
-        border-radius: 3px;
-        border-width: 1px;
-        border-style: solid;
-        margin: 20px 0;
-      }
-
-    </style>';
-// var_dump($bandit); die;
     if(get_option('bw_validation_error') == '1'){
-      echo '<div class="val-error"><p>Validation error. BANDIT_TAG, TAG1 and TAG2 must be alphanumeric strings with no spaces. Underscores are permitted.</p></div>';
+      echo '<div class="bw-val-error"><p>Validation error. BANDIT_TAG, TAG1 and TAG2 must be alphanumeric strings with no spaces. Underscores are permitted.</p></div>';
       update_option('bw_validation_error', '0');
     }
     echo '<p>To embed a bandit put "[bandit]" somewhere in the post body.</p>';
