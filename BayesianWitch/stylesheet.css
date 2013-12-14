@@ -33,10 +33,10 @@
   margin:3px 0 20px 0;
 }
 
-.bw-val-error{
+.bw-error-box{
   background-color: rgb(255, 235, 232);
   border-color: rgb(204, 0, 0);
-  padding: 0px 0.6em;
+  padding: 10px;
   border-radius: 3px;
   border-width: 1px;
   border-style: solid;
