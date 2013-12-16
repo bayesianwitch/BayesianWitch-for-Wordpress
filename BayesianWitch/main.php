@@ -35,6 +35,7 @@ class BayesianWitch{
     add_action('admin_menu', array($this, 'register_submenu'));
     add_action('admin_enqueue_scripts', array($this, 'load_admin_stylesheet'));
     add_filter('content_edit_pre', array($this, 'filter_bandit_shortcode'), 10, 2);
+    remove_filter('the_content', 'wpautop');
 
     if($this->is_configured()){ //main functions don't work without credentials
       add_action('add_meta_boxes_post', array($this, 'add_bandit_meta_box'));
@@ -232,6 +233,7 @@ class BayesianWitch{
   public function render_bandit_meta_box($bandit_tag){
     global $post;
 
+    echo '<input type="hidden" name="bw-ready" id="bw-ready" value="0">';
     if($post_error_message = get_option('bw_post_error')){
       echo '<div class="bw-error-box">Bandit is not saved. '.$post_error_message.'</div>';
       update_option('bw_post_error', '');
@@ -247,7 +249,7 @@ class BayesianWitch{
     if($bandit_tag){
       $response = $this->get_bandit($bandit_tag);
       if($error = $this->get_api_error($response)){
-        if(isset($post_error_message)) return; // previous error message was displayed, we don't need 2 similar errors to be shown at the same time
+        if(isset($post_error_message) && $post_error_message) return; // previous error message was displayed, we don't need 2 similar errors to be shown at the same time
         echo '<div class="bw-error-box">'.$error.'</div>';
         return;
       }
@@ -262,7 +264,12 @@ class BayesianWitch{
     echo '<p>To embed a bandit put "[bandit]" somewhere in the post body.</p>';
     echo '<h4>BANDIT_TAG</h4>';
     if(!$bandit_tag){
-      echo '<input class="input" type="text" name="bw-bandit-tag" value="">';
+      if($post->post_title){
+        $bt = 'Bandit_'.$post->post_title.'_'.date('d_F_Y');
+      }else{
+        $bt = 'Bandit_'.date('d_F_Y');
+      }
+      echo '<input class="input" type="text" name="bw-bandit-tag" value="'.$bt.'">';
     } else {
       echo '<span class="input">'.$bandit_tag.'</span>';
     }
@@ -270,10 +277,10 @@ class BayesianWitch{
 
     echo '<h4>TAG1</h4>';
     if(!$bandit_tag){
-      echo '<input class="input" type="text" name="bw-tag1" value="">';
+      echo '<input class="input" type="text" name="bw-tag1" value="Version1">';
     } else {
       echo '<span class="input">'.$bandit->variations[0]->tag.'</span>';
-      echo '<input type="hidden" name="bw-tag1" value="'.$bandit->variations[0]->tag.'"></input>';
+      echo '<input type="hidden" name="bw-tag1" value="'.$bandit->variations[0]->tag.'">';
     }
     echo '<div class="clear"></div>';
 
@@ -287,10 +294,10 @@ class BayesianWitch{
 
     echo '<h4>TAG2</h4>';
     if(!$bandit_tag){
-      echo '<input class="input" type="text" name="bw-tag2" value="">';
+      echo '<input class="input" type="text" name="bw-tag2" value="Version2">';
     } else {
       echo '<span class="input">'.$bandit->variations[1]->tag.'</span>';
-      echo '<input type="hidden" name="bw-tag2" value="'.$bandit->variations[1]->tag.'"></input>';
+      echo '<input type="hidden" name="bw-tag2" value="'.$bandit->variations[1]->tag.'">';
     }
 
     echo '<div class="clear"></div>';
@@ -310,19 +317,10 @@ class BayesianWitch{
 
     $post_id =  $post_raw['ID'];
     if(!$post) return $post_san; //return if it's an auto draft or revision
-    define ('WP_POST_REVISIONS', 0);
-// Autosave, do nothing
-    if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE )
-      return $post_san;
-// AJAX? Not used here
-    if ( defined( 'DOING_AJAX' ) && DOING_AJAX )
-      return $post_san;
-// Check user permissions
-    if ( ! current_user_can( 'edit_post', $post_id ) )
-      return $post_san;
-// Return if it's a post revision
-    if ( false !== wp_is_post_revision( $post_id ) )
-      return $post_san;
+    if(defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return $post_san;
+    if(defined('DOING_AJAX') && DOING_AJAX) return $post_san;
+    if(!current_user_can('edit_post', $post_id)) return $post_san;
+    if(false !== wp_is_post_revision($post_id)) return $post_san;
 
     $bandit_tag_meta = get_post_meta($post->ID, '_bandit_tag');
     if($bandit_tag_meta){ // if already exists
@@ -332,31 +330,39 @@ class BayesianWitch{
     }
     $bandit_tag1 = $_POST['bw-tag1'];
     $bandit_tag2 = $_POST['bw-tag2'];
+    $bandit_body1 = stripslashes($_POST['bw-body1']);
+    $bandit_body2 = stripslashes($_POST['bw-body2']);
 
+    $update = true;
+    if(!$bandit_body1 || !$bandit_body2){
+      $update = false; //don't update bandit if one of bandit bodies is empty
+    }
     if(!$this->validate_tag($bandit_tag) || !$this->validate_tag($bandit_tag1) || !$this->validate_tag($bandit_tag2)){
       update_option('bw_validation_error', '1');
       return $post_san;
     }
-
-    $bandit_body1 = stripslashes($_POST['bw-body1']);
-    $bandit_body2 = stripslashes($_POST['bw-body2']);
 
     if($bandit_tag){
       $json = array();
       $json[] = array('tag' => $bandit_tag1, 'isActive' => true, 'contentAndType' => array('content_type' => 'text/html', 'content' => $bandit_body1));
       $json[] = array('tag' => $bandit_tag2, 'isActive' => true, 'contentAndType' => array('content_type' => 'text/html', 'content' => $bandit_body2));
       $json = json_encode($json, JSON_UNESCAPED_SLASHES);
-      $response = $this->send_bandit_update($json, $bandit_tag);
-      if($error = $this->get_api_error($response)){
-        update_option('bw_post_error', $error);
-        return $post_san;
-      }
-      $bandit = json_decode($response->body);
-      if($bandit){
+      if($update){
+        $response = $this->send_bandit_update($json, $bandit_tag);
+        if($error = $this->get_api_error($response)){
+          update_option('bw_post_error', $error);
+          return $post_san;
+        }
+        $bandit = json_decode($response->body);
         if(!$bandit_tag_meta){
           update_post_meta($post->ID, '_bandit_tag', $bandit_tag);
         }
+      }else{
+        $response = $this->get_bandit($bandit_tag);
+        $bandit = json_decode($response->body);
+      }
 
+      if($bandit){
         $post_content = $_POST['post_content'];
         if(preg_match('/\[bandit\]/', $post_content)){
           $response = $this->get_js_widget($bandit->bandit->uuid);
