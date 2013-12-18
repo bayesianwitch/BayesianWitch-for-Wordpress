@@ -35,8 +35,9 @@ class BayesianWitch{
     add_action('admin_menu', array($this, 'register_submenu'));
     add_action('admin_enqueue_scripts', array($this, 'load_admin_stylesheet'));
     add_filter('content_edit_pre', array($this, 'filter_bandit_shortcode'), 10, 2);
-    remove_filter('the_content', 'wpautop');
-
+    wp_register_style('bw_wpautop_fix', plugins_url('wpautop_fix.css', __FILE__) );
+    wp_enqueue_style('bw_wpautop_fix');
+    
     if($this->is_configured()){ //main functions don't work without credentials
       add_action('add_meta_boxes_post', array($this, 'add_bandit_meta_box'));
       add_action('wp_head', array($this, 'add_tracking_js'));
@@ -371,7 +372,7 @@ class BayesianWitch{
             return $post_san;
           }
           $js_widget = $response->body;
-          $bandit_html = '<!--bandit-start--><div id="'.$bandit->bandit->uuid.'"></div>'.'<script type="application/javascript">'.wp_slash($js_widget).'</script><!--bandit-end-->';
+          $bandit_html = '<!--bandit-start--><div id="bw-container"><div id="'.$bandit->bandit->uuid.'"></div>'.'<script type="application/javascript">'.wp_slash($js_widget).'</script></div><!--bandit-end-->';
           $post_content = str_replace('[bandit]', $bandit_html, $post_content);
           $post_san['post_content'] = $post_content;
         }
