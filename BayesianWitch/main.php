@@ -1,13 +1,15 @@
 <?php
   /*
   Plugin Name: BayesianWitch
-  Version: 0.1
+  Version: 0.2
   Description: -
   Author: Vladymir Goryachev
   */
-  // TODO: exceptions, clean css, ability to remove a bandit
+
   // Client ID: bc232af6-8609-4e5f-a24a-7231ff7e14e5
   // Client Secret: 2d35ffd0-f072-4644-bcf9-d94f91e51734
+
+require_once 'curl.php';
 
 class BayesianWitch{
   private $client;
@@ -17,22 +19,31 @@ class BayesianWitch{
   private $api_port;
   private $api_full_url;
   private $site_uuid;
-  private $api_key_needed_message = "<p>Please enter domain, client ID and secret ID. These can be found by creating an account on the <a href=\"http://192.241.169.111?source=wordpress\">BayesianWitch.com</a> site. Once an account is created, you create a site, then click the \"Reset and view API keys\" button.</p>";
+  private $api_key_needed_message;
+  private $configuration_needed_message;
+
 
   public function __construct(){
+    $this->api_key_needed_message = "Please enter domain, client ID and secret ID. These can be found by creating an account on the <a href=\"http://192.241.169.111?source=wordpress\">BayesianWitch.com</a> site. Once an account is created, you create a site, then click the \"Reset and view API keys\" button.";
+    $this->configuration_needed_message = '<a href="'.site_url().'/wp-admin/plugins.php?page=BayesianWitch">Click here</a> to configure BayesianWitch plugin';
+
     $this->js_widget_url = 'http://recommend.bayesianwitch.com';
     $this->api_url = 'http://api.bayesianwitch.com';
     $this->api_port = '8090';
     $this->api_full_url = $this->api_url.':'.$this->api_port;
 
     add_action('admin_menu', array($this, 'register_submenu'));
-    add_filter('content_edit_pre', array($this, 'filter_bandit_shortcode'), 10, 2 );
-
+    add_action('admin_enqueue_scripts', array($this, 'load_admin_stylesheet'));
+    add_filter('content_edit_pre', array($this, 'filter_bandit_shortcode'), 10, 2);
+    wp_register_style('bw_wpautop_fix', plugins_url('wpautop_fix.css', __FILE__) );
+    wp_enqueue_style('bw_wpautop_fix');
+    
     if($this->is_configured()){ //main functions don't work without credentials
       add_action('add_meta_boxes_post', array($this, 'add_bandit_meta_box'));
       add_action('wp_head', array($this, 'add_tracking_js'));
-//      add_action('save_post', array($this, 'save_metadata'));
-      add_filter( 'wp_insert_post_data', array($this, 'save_metadata'), '99', 2 );
+      add_filter('wp_insert_post_data', array($this, 'save_metadata'), '99', 2);
+    } else {
+      add_action('admin_notices', array($this, 'render_admin_error'));
     }
   }
 
@@ -77,7 +88,9 @@ class BayesianWitch{
     if(!isset($this->site_uuid)){
       if(!$this->site_uuid = get_option('bw_site_uuid')){
         $url = $this->api_full_url.'/sites/'.$this->get_domain().'/?client='.$this->get_client().'&secret='.$this->get_secret();
-        $json = json_decode(file_get_contents($url));
+        $response = Curl::get($url);
+        if($this->get_api_error($response)) return;
+        $json = $response->body;
         $this->site_uuid = $json->uuid;
         update_option('bw_site_uuid', $this->site_uuid);
       }
@@ -87,30 +100,49 @@ class BayesianWitch{
 
   private function get_bandit($bandit_tag){
     $url = $this->api_full_url.'/bandits/'.$this->get_site_uuid().'/'.$bandit_tag.'?client='.$this->get_client().'&secret='.$this->get_secret();
-    $result = json_decode(file_get_contents($url));
-    return $result;
+    $response = Curl::get($url);
+    return $response;
   }
 
   private function get_js_widget($bandit_uuid){
     $url = $this->js_widget_url.'/js_widget/'.$bandit_uuid;
-    $result = file_get_contents($url);
-    return $result;
+    $response = Curl::get($url);
+    return $response;
+  }
+
+  private function get_api_error($response){
+    if($response->curl_error) return 'CURL Error: '.$response->curl_error;
+    if($response->http_code >= 400){
+      $json = json_decode($response->body);
+      if(isset($json->humanReadable)){
+        return 'BayesianWitch Error: '.$json->humanReadable;
+      }
+      if(isset($json->message)){
+        return 'BayesianWitch Error: '.$json->message;
+      }
+      return 'BayesianWitch Error: HTTP '.$response->http_code;
+    }
+    return false;
+  }
+
+  private function get_credentials_and_domain_error(){
+    $url_credentials = $this->api_full_url.'/client/check_credentials?client='.$this->get_client().'&secret='.$this->get_secret();
+    $response = Curl::get($url_credentials);
+    if($error = $this->get_api_error($response)){
+      return $error;
+    }
+    $url_domain = $this->api_full_url.'/sites/'.$this->get_domain().'?client='.$this->get_client().'&secret='.$this->get_secret();
+    $response = Curl::get($url_domain);
+    if($error = $this->get_api_error($response)){
+      return $error;
+    }
+    return false;
   }
 
   private function send_bandit_update($data, $bandit_tag){
-    $url = $this->api_url.'/bandits/'.$this->get_site_uuid().'/'.$bandit_tag.'?client='.$this->get_client().'&secret='.$this->get_secret();
-    $curl = curl_init();
-    curl_setopt($curl, CURLOPT_URL, $url);
-    curl_setopt($curl, CURLOPT_PORT , $this->api_port);
-    curl_setopt($curl, CURLOPT_VERBOSE, 0);
-    curl_setopt($curl, CURLOPT_HEADER, 0);
-
-    curl_setopt($curl, CURLOPT_CUSTOMREQUEST, "PUT");
-    curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-    curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
-    curl_setopt($curl, CURLOPT_HTTPHEADER, array("Content-Type: application/json", "Content-length: ".strlen($data)));
-    $result = json_decode(curl_exec($curl));
-    return $result;
+    $url = $this->api_full_url.'/bandits/'.$this->get_site_uuid().'/'.$bandit_tag.'?client='.$this->get_client().'&secret='.$this->get_secret();
+    $response = Curl::put_json($url, $data);
+    return $response;
   }
 
   private function validate_tag($tag){
@@ -125,65 +157,37 @@ class BayesianWitch{
     add_submenu_page('plugins.php', 'BayesianWitch plugin settings', 'BayesianWitch', 10, 'BayesianWitch', array($this, 'render_menu'));
   }
 
+  public function load_admin_stylesheet($hook){
+    wp_register_style('bw_stylesheet', plugins_url('stylesheet.css', __FILE__) );
+    wp_enqueue_style('bw_stylesheet');
+  }
+
+  public function render_admin_error($message){
+    echo '<div class="error"><p>'.$this->configuration_needed_message.'</p></div>';
+  }
+
   public function render_menu(){
+
     if(isset($_POST['bw-domain'])){
       $this->set_domain($_POST['bw-domain']);
+    }
+    if(isset($_POST['bw-client'])){
       $this->set_client($_POST['bw-client']);
+    }
+    if(isset($_POST['bw-secret'])){
       $this->set_secret($_POST['bw-secret']);
     }
 
-    echo '<style type="text/css">
-      #bayesianwitch.postbox{
-        max-width: 700px;
-      }
-      #bayesianwitch h4{
-        float: left;
-        width: 10%;
-        margin: 3px 0 0 0;
-      }
-
-      #bayesianwitch h4.bandit-body{
-        margin-top: 30px;
-      }
-
-      #bayesianwitch .wp-editor-wrap{
-        float: right;
-        width: 89%;
-        margin-bottom: 20px;
-      }
-
-      #bayesianwitch .input{
-        float: right;
-        width: 89%;
-        margin-bottom: 20px;
-      }
-
-       #bayesianwitch .button{
-        float: right;
-        width: 70px;
-      }
-
-      #bayesianwitch span.input{
-        margin:3px 0 20px 0;
-      }
-
-      .val-error{
-        background-color: rgb(255, 235, 232);
-        border-color: rgb(204, 0, 0);
-        padding: 0px 0.6em;
-        border-radius: 3px;
-        border-width: 1px;
-        border-style: solid;
-        margin: 20px 0;
-      }
-
-    </style>';
     echo '<h2>BayesianWitch plugin settings</h2>';
-    if(!$this->is_configured()){
-      echo '<div class="val-error">'.$this->api_key_needed_message.'</div>';
+    if($this->is_configured()){
+      if($error = $this->get_credentials_and_domain_error()){
+        echo '<div class="bw-error-box">'.$error.'</div>';
+      }
+    }else{
+      echo '<div class="bw-error-box">'.$this->api_key_needed_message.'</div>';
     }
     echo '<form action="" method="post">';
-    echo '<div id="bayesianwitch" class="postbox"><div class="inside">';
+    echo '<div id="bayesianwitch" class="postbox bw-admin-config"><div class="inside">';
     echo '<h4>Domain:</h4>';
     echo '<input class="input" type="text" name="bw-domain" value="'.$this->get_domain().'">';
     echo '<div class="clear"></div>';
@@ -193,7 +197,7 @@ class BayesianWitch{
     echo '<h4>Secret Key:</h4>';
     echo '<input class="input" type="text" name="bw-secret" value="'.$this->get_secret().'">';
     echo '<div class="clear"></div>';
-    echo '<input type="submit" value="Save" class="button">';
+    echo '<input type="submit" value="Save" class="bw-button">';
     echo '<div class="clear"></div>';
     echo '</div></div>';
     echo '<p>The client ID and secret ID can be found on <a href=\"http://192.241.169.111?source=wordpress_plugin\" target=\"_blank\">BayesianWitch.com</a>. You need to create an account and then create a site, where the domain of the site is the domain of your blog (e.g. www.myblog.com). The enter "www.myblog.com" (or whatever your real domain is) for the Domain field.</p>';
@@ -210,8 +214,11 @@ class BayesianWitch{
     $js = get_option('bw_tracking_js');
     if(!$js){
       $url = $this->api_full_url.'/sites/'.$this->get_domain().'/javascript?client='.$this->get_client().'&secret='.$this->get_secret();
-      $js = file_get_contents($url);
-      update_option('bw_tracking_js', $js);
+      $response = Curl::get($url);
+      if(!$this->get_api_error($response)){
+        $js = $response->body;
+        update_option('bw_tracking_js', $js);
+      }
     }
     echo '<script type="application/javascript">'.$js.'</script>';
   }
@@ -227,6 +234,12 @@ class BayesianWitch{
   public function render_bandit_meta_box($bandit_tag){
     global $post;
 
+    echo '<input type="hidden" name="bw-ready" id="bw-ready" value="0">';
+    if($post_error_message = get_option('bw_post_error')){
+      echo '<div class="bw-error-box">Bandit is not saved. '.$post_error_message.'</div>';
+      update_option('bw_post_error', '');
+    }
+
     $bandit_tag = get_post_meta($post->ID, '_bandit_tag');
     if(empty($bandit_tag)){
       $bandit_tag = '';
@@ -235,56 +248,29 @@ class BayesianWitch{
     }
 
     if($bandit_tag){
-      $bandit = $this->get_bandit($bandit_tag);
+      $response = $this->get_bandit($bandit_tag);
+      if($error = $this->get_api_error($response)){
+        if(isset($post_error_message) && $post_error_message) return; // previous error message was displayed, we don't need 2 similar errors to be shown at the same time
+        echo '<div class="bw-error-box">'.$error.'</div>';
+        return;
+      }
+      $bandit = json_decode($response->body);
     }
 
-    echo '<style type="text/css">
-      #bayesianwitch h4{
-        float: left;
-        width: 10%;
-        margin: 3px 0 0 0;
-      }
-
-      #bayesianwitch h4.bandit-body{
-        margin-top: 30px;
-      }
-
-      #bayesianwitch .wp-editor-wrap{
-        float: right;
-        width: 89%;
-        margin-bottom: 20px;
-      }
-
-      #bayesianwitch .input{
-        float: right;
-        width: 89%;
-        margin-bottom: 20px;
-      }
-
-      #bayesianwitch span.input{
-        margin:3px 0 20px 0;
-      }
-
-      #bayesianwitch .val-error{
-        background-color: rgb(255, 235, 232);
-        border-color: rgb(204, 0, 0);
-        padding: 0px 0.6em;
-        border-radius: 3px;
-        border-width: 1px;
-        border-style: solid;
-        margin: 20px 0;
-      }
-
-    </style>';
-// var_dump($bandit); die;
-    if(get_option('bw_validation_error') == '1'){
-      echo '<div class="val-error"><p>Validation error. BANDIT_TAG, TAG1 and TAG2 must be alphanumeric strings with no spaces. Underscores are permitted.</p></div>';
-      update_option('bw_validation_error', '0');
+    if(get_option('bw_validation_error')){
+      echo '<div class="bw-error-box">Validation error. BANDIT_TAG, TAG1 and TAG2 must be alphanumeric strings with no spaces. Underscores are permitted.</div>';
+      update_option('bw_validation_error', '');
     }
+
     echo '<p>To embed a bandit put "[bandit]" somewhere in the post body.</p>';
     echo '<h4>BANDIT_TAG</h4>';
     if(!$bandit_tag){
-      echo '<input class="input" type="text" name="bw-bandit-tag" value="">';
+      if($post->post_title){
+        $bt = 'Bandit_'.$post->post_title.'_'.date('d_F_Y');
+      }else{
+        $bt = 'Bandit_'.date('d_F_Y');
+      }
+      echo '<input class="input" type="text" name="bw-bandit-tag" value="'.$bt.'">';
     } else {
       echo '<span class="input">'.$bandit_tag.'</span>';
     }
@@ -292,10 +278,10 @@ class BayesianWitch{
 
     echo '<h4>TAG1</h4>';
     if(!$bandit_tag){
-      echo '<input class="input" type="text" name="bw-tag1" value="">';
+      echo '<input class="input" type="text" name="bw-tag1" value="Version1">';
     } else {
       echo '<span class="input">'.$bandit->variations[0]->tag.'</span>';
-      echo '<input type="hidden" name="bw-tag1" value="'.$bandit->variations[0]->tag.'"></input>';
+      echo '<input type="hidden" name="bw-tag1" value="'.$bandit->variations[0]->tag.'">';
     }
     echo '<div class="clear"></div>';
 
@@ -309,10 +295,10 @@ class BayesianWitch{
 
     echo '<h4>TAG2</h4>';
     if(!$bandit_tag){
-      echo '<input class="input" type="text" name="bw-tag2" value="">';
+      echo '<input class="input" type="text" name="bw-tag2" value="Version2">';
     } else {
       echo '<span class="input">'.$bandit->variations[1]->tag.'</span>';
-      echo '<input type="hidden" name="bw-tag2" value="'.$bandit->variations[1]->tag.'"></input>';
+      echo '<input type="hidden" name="bw-tag2" value="'.$bandit->variations[1]->tag.'">';
     }
 
     echo '<div class="clear"></div>';
@@ -327,25 +313,15 @@ class BayesianWitch{
 
   }
 
-
   public function save_metadata($post_san, $post_raw){
     global $post;
 
     $post_id =  $post_raw['ID'];
     if(!$post) return $post_san; //return if it's an auto draft or revision
-    define ('WP_POST_REVISIONS', 0);
-// Autosave, do nothing
-    if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE )
-      return $post_san;
-// AJAX? Not used here
-    if ( defined( 'DOING_AJAX' ) && DOING_AJAX )
-      return $post_san;
-// Check user permissions
-    if ( ! current_user_can( 'edit_post', $post_id ) )
-      return $post_san;
-// Return if it's a post revision
-    if ( false !== wp_is_post_revision( $post_id ) )
-      return $post_san;
+    if(defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return $post_san;
+    if(defined('DOING_AJAX') && DOING_AJAX) return $post_san;
+    if(!current_user_can('edit_post', $post_id)) return $post_san;
+    if(false !== wp_is_post_revision($post_id)) return $post_san;
 
     $bandit_tag_meta = get_post_meta($post->ID, '_bandit_tag');
     if($bandit_tag_meta){ // if already exists
@@ -355,35 +331,49 @@ class BayesianWitch{
     }
     $bandit_tag1 = $_POST['bw-tag1'];
     $bandit_tag2 = $_POST['bw-tag2'];
+    $bandit_body1 = stripslashes($_POST['bw-body1']);
+    $bandit_body2 = stripslashes($_POST['bw-body2']);
 
+    $update = true;
+    if(!$bandit_body1 || !$bandit_body2){
+      $update = false; //don't update bandit if one of bandit bodies is empty
+    }
     if(!$this->validate_tag($bandit_tag) || !$this->validate_tag($bandit_tag1) || !$this->validate_tag($bandit_tag2)){
       update_option('bw_validation_error', '1');
       return $post_san;
     }
-
-    $bandit_body1 = stripslashes($_POST['bw-body1']);
-    $bandit_body2 = stripslashes($_POST['bw-body2']);
 
     if($bandit_tag){
       $json = array();
       $json[] = array('tag' => $bandit_tag1, 'isActive' => true, 'contentAndType' => array('content_type' => 'text/html', 'content' => $bandit_body1));
       $json[] = array('tag' => $bandit_tag2, 'isActive' => true, 'contentAndType' => array('content_type' => 'text/html', 'content' => $bandit_body2));
       $json = json_encode($json, JSON_UNESCAPED_SLASHES);
-      $bandit = $this->send_bandit_update($json, $bandit_tag);
-      if($bandit){
+      if($update){
+        $response = $this->send_bandit_update($json, $bandit_tag);
+        if($error = $this->get_api_error($response)){
+          update_option('bw_post_error', $error);
+          return $post_san;
+        }
+        $bandit = json_decode($response->body);
         if(!$bandit_tag_meta){
           update_post_meta($post->ID, '_bandit_tag', $bandit_tag);
         }
+      }else{
+        $response = $this->get_bandit($bandit_tag);
+        $bandit = json_decode($response->body);
+      }
 
+      if($bandit){
         $post_content = $_POST['post_content'];
         if(preg_match('/\[bandit\]/', $post_content)){
-          $js_widget = $this->get_js_widget($bandit->bandit->uuid);
-          $bandit_html = '<!--bandit-start--><div id="'.$bandit->bandit->uuid.'"></div>'.'<script type="application/javascript">'.wp_slash($js_widget).'</script><!--bandit-end-->';
+          $response = $this->get_js_widget($bandit->bandit->uuid);
+          if($error = $this->get_api_error($response)){
+            update_option('bw_post_error', $error);
+            return $post_san;
+          }
+          $js_widget = $response->body;
+          $bandit_html = '<!--bandit-start--><div id="bw-container"><div id="'.$bandit->bandit->uuid.'"></div>'.'<script type="application/javascript">'.wp_slash($js_widget).'</script></div><!--bandit-end-->';
           $post_content = str_replace('[bandit]', $bandit_html, $post_content);
-
-//          remove_action('save_post', array($this, 'save_metadata'));
-//          wp_update_post(array('ID' => $post->ID, 'post_content' => $post_content));
-//          add_action('save_post', array($this, 'save_metadata'));
           $post_san['post_content'] = $post_content;
         }
       }
@@ -393,3 +383,4 @@ class BayesianWitch{
 }
 
 $BayesianWitch = new BayesianWitch();
+
