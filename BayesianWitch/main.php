@@ -94,10 +94,14 @@ class BayesianWitch{
     return '?'.http_build_query(array('client' => $this->get_client(), 'secret' => $this->get_secret()));
   }
 
+  private function make_api_url($path){
+    return $this->api_full_url.$path.$this->get_auth_url_string();
+  }
+
   private function get_site_uuid(){
     if(!isset($this->site_uuid)){
       if(!$this->site_uuid = get_option('bw_site_uuid')){
-        $url = $this->api_full_url.'/sites/'.$this->get_domain().'/'.$this->get_auth_url_string();
+        $url = $this->make_api_url('/sites/'.$this->get_domain().'/');
         $response = Curl::get($url);
         if($this->get_api_error($response)){
           return $response;
@@ -120,7 +124,7 @@ class BayesianWitch{
     if($this->get_api_error($uuid_response)){
       return $uuid_response;
     }
-    $url = $this->api_full_url.'/bandits/'.$uuid_response.'/'.$bandit_tag.$this->get_auth_url_string();
+    $url = $this->make_api_url('/bandits/'.$uuid_response.'/'.$bandit_tag);
     $response = Curl::get($url);
     return $response;
   }
@@ -149,12 +153,12 @@ class BayesianWitch{
 
   private function get_credentials_and_domain_errors(){
     $result = array();
-    $url_credentials = $this->api_full_url.'/client/check_credentials'.$this->get_auth_url_string();
+    $url_credentials = $this->make_api_url('/client/check_credentials');
     $response = Curl::get($url_credentials);
     if($error = $this->get_api_error($response)){
       $result['credentials'] = $error;
     }
-    $url_domain = $this->api_full_url.'/sites/'.$this->get_domain().$this->get_auth_url_string();
+    $url_domain = $this->make_api_url('/sites/'.$this->get_domain());
     $response = Curl::get($url_domain);
     if($error = $this->get_api_error($response)){
       $result['domain'] = $error;
@@ -167,7 +171,7 @@ class BayesianWitch{
     if($this->get_api_error($uuid_response)){
       return $uuid_response;
     }
-    $url = $this->api_full_url.'/bandits/'.$uuid_response.'/'.$bandit_tag.$this->get_auth_url_string();
+    $url = $this->make_api_url('/bandits/'.$uuid_response.'/'.$bandit_tag);
     $response = Curl::put_json($url, $data);
     return $response;
   }
