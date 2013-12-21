@@ -1,11 +1,18 @@
 <?php
 
 class Curl{
-  public static function get($url){
+  private static function new_curl(){
     $curl = curl_init();
-    curl_setopt($curl, CURLOPT_URL, $url);
+    curl_setopt($curl, CURLOPT_USERAGENT, "BayesianWitch Wordpress Call-to-Action tester");
     curl_setopt($curl, CURLOPT_HEADER, false);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+    return $curl;
+  }
+
+  public static function get($url){
+    $curl = self::new_curl();
+    curl_setopt($curl, CURLOPT_URL, $url);
+
     $response = new CurlResponse();
     $response->body = curl_exec($curl);
     $response->curl_error = curl_error($curl);
@@ -14,10 +21,8 @@ class Curl{
   }
 
   public static function put_json($url, $data){
-    $curl = curl_init();
+    $curl = self::new_curl();
     curl_setopt($curl, CURLOPT_URL, $url);
-    curl_setopt($curl, CURLOPT_HEADER, false);
-    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($curl, CURLOPT_CUSTOMREQUEST, "PUT");
     curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
     curl_setopt($curl, CURLOPT_HTTPHEADER, array("Content-Type: application/json", "Content-length: ".strlen($data)));
