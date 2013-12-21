@@ -18,6 +18,10 @@
   margin-bottom: 20px;
 }
 
+#bayesianwitch .input.error{
+  border-color: #CC0000;
+}
+
 #bayesianwitch .input{
   float: right;
   width: 89%;

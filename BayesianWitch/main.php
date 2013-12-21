@@ -71,16 +71,19 @@ class BayesianWitch{
   private function set_domain($x){
     $this->domain = $x;
     update_option('bw_domain', $x);
+    $this->flush_site_uuid();
   }
 
   private function set_client($x){
     $this->client = $x;
     update_option('bw_client', $x);
+    $this->flush_site_uuid();
   }
 
   private function set_secret($x){
     $this->secret = $x;
     update_option('bw_secret', $x);
+    $this->flush_site_uuid();
   }
 
 
@@ -89,8 +92,10 @@ class BayesianWitch{
       if(!$this->site_uuid = get_option('bw_site_uuid')){
         $url = $this->api_full_url.'/sites/'.$this->get_domain().'/?client='.$this->get_client().'&secret='.$this->get_secret();
         $response = Curl::get($url);
-        if($this->get_api_error($response)) return;
-        $json = $response->body;
+        if($this->get_api_error($response)){
+          return $response;
+        }
+        $json = json_decode($response->body);
         $this->site_uuid = $json->uuid;
         update_option('bw_site_uuid', $this->site_uuid);
       }
@@ -98,8 +103,17 @@ class BayesianWitch{
     return $this->site_uuid;
   }
 
+  private function flush_site_uuid(){
+    $this->site_uuid = '';
+    update_option('bw_site_uuid', '');
+  }
+
   private function get_bandit($bandit_tag){
-    $url = $this->api_full_url.'/bandits/'.$this->get_site_uuid().'/'.$bandit_tag.'?client='.$this->get_client().'&secret='.$this->get_secret();
+    $uuid_response = $this->get_site_uuid();
+    if($this->get_api_error($uuid_response)){
+      return $uuid_response;
+    }
+    $url = $this->api_full_url.'/bandits/'.$uuid_response.'/'.$bandit_tag.'?client='.$this->get_client().'&secret='.$this->get_secret();
     $response = Curl::get($url);
     return $response;
   }
@@ -111,6 +125,7 @@ class BayesianWitch{
   }
 
   private function get_api_error($response){
+    if(!is_object($response)) return false;
     if($response->curl_error) return 'CURL Error: '.$response->curl_error;
     if($response->http_code >= 400){
       $json = json_decode($response->body);
@@ -125,22 +140,27 @@ class BayesianWitch{
     return false;
   }
 
-  private function get_credentials_and_domain_error(){
+  private function get_credentials_and_domain_errors(){
+    $result = array();
     $url_credentials = $this->api_full_url.'/client/check_credentials?client='.$this->get_client().'&secret='.$this->get_secret();
     $response = Curl::get($url_credentials);
     if($error = $this->get_api_error($response)){
-      return $error;
+      $result['credentials'] = $error;
     }
     $url_domain = $this->api_full_url.'/sites/'.$this->get_domain().'?client='.$this->get_client().'&secret='.$this->get_secret();
     $response = Curl::get($url_domain);
     if($error = $this->get_api_error($response)){
-      return $error;
+      $result['domain'] = $error;
     }
-    return false;
+    return $result;
   }
 
   private function send_bandit_update($data, $bandit_tag){
-    $url = $this->api_full_url.'/bandits/'.$this->get_site_uuid().'/'.$bandit_tag.'?client='.$this->get_client().'&secret='.$this->get_secret();
+    $uuid_response = $this->get_site_uuid();
+    if($this->get_api_error($uuid_response)){
+      return $uuid_response;
+    }
+    $url = $this->api_full_url.'/bandits/'.$uuid_response.'/'.$bandit_tag.'?client='.$this->get_client().'&secret='.$this->get_secret();
     $response = Curl::put_json($url, $data);
     return $response;
   }
@@ -179,9 +199,22 @@ class BayesianWitch{
     }
 
     echo '<h2>BayesianWitch plugin settings</h2>';
+    $credentials_classes = 'input';
+    $domain_classes = 'input';
     if($this->is_configured()){
-      if($error = $this->get_credentials_and_domain_error()){
-        echo '<div class="bw-error-box">'.$error.'</div>';
+      $errors = $this->get_credentials_and_domain_errors();
+      if(!empty($errors)){
+        if(isset($errors['credentials'])){
+          $credentials_classes .= ' error';
+        }
+        if(isset($errors['domain'])){
+          $domain_classes .= ' error';
+        }
+        if(isset($errors['credentials'])){
+          echo '<div class="bw-error-box">'.$errors['credentials'].'</div>';
+        }else{
+          echo '<div class="bw-error-box">'.$errors['domain'].'</div>';
+        }
       }
     }else{
       echo '<div class="bw-error-box">'.$this->api_key_needed_message.'</div>';
@@ -189,13 +222,13 @@ class BayesianWitch{
     echo '<form action="" method="post">';
     echo '<div id="bayesianwitch" class="postbox bw-admin-config"><div class="inside">';
     echo '<h4>Domain:</h4>';
-    echo '<input class="input" type="text" name="bw-domain" value="'.$this->get_domain().'">';
+    echo '<input class="'.$domain_classes.'" type="text" name="bw-domain" value="'.$this->get_domain().'">';
     echo '<div class="clear"></div>';
     echo '<h4>Client ID:</h4>';
-    echo '<input class="input" type="text" name="bw-client" value="'.$this->get_client().'">';
+    echo '<input class="'.$credentials_classes.'" type="text" name="bw-client" value="'.$this->get_client().'">';
     echo '<div class="clear"></div>';
     echo '<h4>Secret Key:</h4>';
-    echo '<input class="input" type="text" name="bw-secret" value="'.$this->get_secret().'">';
+    echo '<input class="'.$credentials_classes.'" type="text" name="bw-secret" value="'.$this->get_secret().'">';
     echo '<div class="clear"></div>';
     echo '<input type="submit" value="Save" class="bw-button">';
     echo '<div class="clear"></div>';
@@ -266,9 +299,11 @@ class BayesianWitch{
     echo '<h4>BANDIT_TAG</h4>';
     if(!$bandit_tag){
       if($post->post_title){
-        $bt = 'Bandit_'.$post->post_title.'_'.date('d_F_Y');
+        $title = str_replace(' ', '_', $post->post_title);
+        $title = preg_replace('/[^a-zA-Z0-9_]/', '', $title);
+        $bt = 'Bandit_'.$title.'_'.date('d_F_Y').'_p'.$post->ID;
       }else{
-        $bt = 'Bandit_'.date('d_F_Y');
+        $bt = 'Bandit_'.date('d_F_Y').'_p'.$post->ID;
       }
       echo '<input class="input" type="text" name="bw-bandit-tag" value="'.$bt.'">';
     } else {
@@ -338,7 +373,7 @@ class BayesianWitch{
     if(!$bandit_body1 || !$bandit_body2){
       $update = false; //don't update bandit if one of bandit bodies is empty
     }
-    if(!$this->validate_tag($bandit_tag) || !$this->validate_tag($bandit_tag1) || !$this->validate_tag($bandit_tag2)){
+    if($update && (!$this->validate_tag($bandit_tag) || !$this->validate_tag($bandit_tag1) || !$this->validate_tag($bandit_tag2))){
       update_option('bw_validation_error', '1');
       return $post_san;
     }
@@ -365,7 +400,7 @@ class BayesianWitch{
 
       if($bandit){
         $post_content = $_POST['post_content'];
-        if(preg_match('/\[bandit\]/', $post_content)){
+        if($update && preg_match('/\[bandit\]/', $post_content)){
           $response = $this->get_js_widget($bandit->bandit->uuid);
           if($error = $this->get_api_error($response)){
             update_option('bw_post_error', $error);
