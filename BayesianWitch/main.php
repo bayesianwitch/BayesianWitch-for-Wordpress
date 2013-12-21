@@ -24,7 +24,7 @@ class BayesianWitch{
 
 
   public function __construct(){
-    $this->api_key_needed_message = "Please enter domain, client ID and secret ID. These can be found by creating an account on the <a href=\"http://192.241.169.111?source=wordpress\">BayesianWitch.com</a> site. Once an account is created, you create a site, then click the \"Reset and view API keys\" button.";
+    $this->api_key_needed_message = "Please enter domain, client ID and secret ID. These can be found by creating an account on the <a href=\"http://www.bayesianwitch.com?source=wordpress\">BayesianWitch.com</a> site. Once an account is created, you create a site, then click the \"Reset and view API keys\" button.";
     $this->configuration_needed_message = '<a href="'.site_url().'/wp-admin/plugins.php?page=BayesianWitch">Click here</a> to configure BayesianWitch plugin';
 
     $this->js_widget_url = 'http://recommend.bayesianwitch.com';
@@ -37,7 +37,7 @@ class BayesianWitch{
     add_filter('content_edit_pre', array($this, 'filter_bandit_shortcode'), 10, 2);
     wp_register_style('bw_wpautop_fix', plugins_url('wpautop_fix.css', __FILE__) );
     wp_enqueue_style('bw_wpautop_fix');
-    
+
     if($this->is_configured()){ //main functions don't work without credentials
       add_action('add_meta_boxes_post', array($this, 'add_bandit_meta_box'));
       add_action('wp_head', array($this, 'add_tracking_js'));
@@ -69,28 +69,35 @@ class BayesianWitch{
   }
 
   private function set_domain($x){
-    $this->domain = $x;
-    update_option('bw_domain', $x);
+    $cleaned_domain = trim($x);
+    $this->domain = $cleaned_domain;
+    update_option('bw_domain', $cleaned_domain);
     $this->flush_site_uuid();
   }
 
   private function set_client($x){
-    $this->client = $x;
-    update_option('bw_client', $x);
+    $cleaned_client = trim($x);
+    $this->client = $cleaned_client;
+    update_option('bw_client', $cleaned_client);
     $this->flush_site_uuid();
   }
 
   private function set_secret($x){
-    $this->secret = $x;
-    update_option('bw_secret', $x);
+    $cleaned_secret = trim($x);
+    $this->secret = $cleaned_secret;
+    update_option('bw_secret', $cleaned_secret);
     $this->flush_site_uuid();
   }
 
 
+  private function get_auth_url_string(){
+    return '?'.http_build_query(array('client' => $this->get_client(), 'secret' => $this->get_secret()));
+  }
+
   private function get_site_uuid(){
     if(!isset($this->site_uuid)){
       if(!$this->site_uuid = get_option('bw_site_uuid')){
-        $url = $this->api_full_url.'/sites/'.$this->get_domain().'/?client='.$this->get_client().'&secret='.$this->get_secret();
+        $url = $this->api_full_url.'/sites/'.$this->get_domain().'/'.$this->get_auth_url_string();
         $response = Curl::get($url);
         if($this->get_api_error($response)){
           return $response;
@@ -113,7 +120,7 @@ class BayesianWitch{
     if($this->get_api_error($uuid_response)){
       return $uuid_response;
     }
-    $url = $this->api_full_url.'/bandits/'.$uuid_response.'/'.$bandit_tag.'?client='.$this->get_client().'&secret='.$this->get_secret();
+    $url = $this->api_full_url.'/bandits/'.$uuid_response.'/'.$bandit_tag.$this->get_auth_url_string();
     $response = Curl::get($url);
     return $response;
   }
@@ -142,12 +149,12 @@ class BayesianWitch{
 
   private function get_credentials_and_domain_errors(){
     $result = array();
-    $url_credentials = $this->api_full_url.'/client/check_credentials?client='.$this->get_client().'&secret='.$this->get_secret();
+    $url_credentials = $this->api_full_url.'/client/check_credentials'.$this->get_auth_url_string();
     $response = Curl::get($url_credentials);
     if($error = $this->get_api_error($response)){
       $result['credentials'] = $error;
     }
-    $url_domain = $this->api_full_url.'/sites/'.$this->get_domain().'?client='.$this->get_client().'&secret='.$this->get_secret();
+    $url_domain = $this->api_full_url.'/sites/'.$this->get_domain().$this->get_auth_url_string();
     $response = Curl::get($url_domain);
     if($error = $this->get_api_error($response)){
       $result['domain'] = $error;
@@ -160,7 +167,7 @@ class BayesianWitch{
     if($this->get_api_error($uuid_response)){
       return $uuid_response;
     }
-    $url = $this->api_full_url.'/bandits/'.$uuid_response.'/'.$bandit_tag.'?client='.$this->get_client().'&secret='.$this->get_secret();
+    $url = $this->api_full_url.'/bandits/'.$uuid_response.'/'.$bandit_tag.$this->get_auth_url_string();
     $response = Curl::put_json($url, $data);
     return $response;
   }
@@ -233,8 +240,8 @@ class BayesianWitch{
     echo '<input type="submit" value="Save" class="bw-button">';
     echo '<div class="clear"></div>';
     echo '</div></div>';
-    echo '<p>The client ID and secret ID can be found on <a href=\"http://192.241.169.111?source=wordpress_plugin\" target=\"_blank\">BayesianWitch.com</a>. You need to create an account and then create a site, where the domain of the site is the domain of your blog (e.g. www.myblog.com). The enter "www.myblog.com" (or whatever your real domain is) for the Domain field.</p>';
-    echo '<p>To find the Client ID and Secret Key, click the "Reset and view API keys" button on the BayesianWitch <a href=\"http://192.241.169.111/accounts/profile?source=wordpress_plugin\" target=\"_blank\">profile page</a>.</p>';
+    echo '<p>The client ID and secret ID can be found on <a href=\"http://www.bayesianwitch.com?source=wordpress_plugin\" target=\"_blank\">BayesianWitch.com</a>. You need to create an account and then create a site, where the domain of the site is the domain of your blog (e.g. www.myblog.com). The enter "www.myblog.com" (or whatever your real domain is) for the Domain field.</p>';
+    echo '<p>To find the Client ID and Secret Key, click the "Reset and view API keys" button on the BayesianWitch <a href=\"http://www.bayesianwitch.com/accounts/profile?source=wordpress_plugin\" target=\"_blank\">profile page</a>.</p>';
     echo '</form>';
   }
 
@@ -246,7 +253,7 @@ class BayesianWitch{
   public function add_tracking_js(){
     $js = get_option('bw_tracking_js');
     if(!$js){
-      $url = $this->api_full_url.'/sites/'.$this->get_domain().'/javascript?client='.$this->get_client().'&secret='.$this->get_secret();
+      $url = $this->api_full_url.'/sites/'.$this->get_domain().'/javascript'.$this->get_auth_url_string();
       $response = Curl::get($url);
       if(!$this->get_api_error($response)){
         $js = $response->body;
@@ -418,4 +425,3 @@ class BayesianWitch{
 }
 
 $BayesianWitch = new BayesianWitch();
-
