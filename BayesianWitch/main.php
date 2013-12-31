@@ -250,7 +250,7 @@ class BayesianWitch{
   }
 
   public function filter_bandit_shortcode($content, $post_id){
-    $result = preg_replace('/<!--bandit-start-->.*?<!--bandit-end-->/is', '[bandit]', $content);
+    $result = preg_replace('/<!--bandit-start-->.*?<!--bandit-end-->/is', '{bandit}', $content);
     return $result;
   }
 
@@ -306,7 +306,7 @@ class BayesianWitch{
       update_option('bw_validation_error', '');
     }
 
-    echo '<p>To embed a bandit put "[bandit]" somewhere in the post body.</p>';
+    echo '<p>To embed a bandit put "{bandit}" somewhere in the post body.</p>';
     echo '<h4>BANDIT_TAG</h4>';
     if(!$bandit_tag){
       if($post->post_title){
@@ -419,7 +419,7 @@ class BayesianWitch{
           }
           $js_widget = $response->body;
           $bandit_html = '<!--bandit-start--><div id="bw-container"><div id="'.$bandit->bandit->uuid.'"></div>'.'<script type="application/javascript">'.wp_slash($js_widget).'</script></div><!--bandit-end-->';
-          $post_content = str_replace('[bandit]', $bandit_html, $post_content);
+          $post_content = str_replace('{bandit}', $bandit_html, $post_content);
           $post_san['post_content'] = $post_content;
         }
       }
