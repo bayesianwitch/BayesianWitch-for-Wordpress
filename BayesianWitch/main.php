@@ -33,7 +33,8 @@ class BayesianWitch{
     $this->api_full_url = $this->api_url.':'.$this->api_port;
 
     add_action('admin_menu', array($this, 'register_submenu'));
-    add_action('admin_enqueue_scripts', array($this, 'load_admin_stylesheet'));
+    add_action('admin_enqueue_scripts', array($this, 'add_admin_stylesheet'));
+    add_action('admin_enqueue_scripts', array($this, 'add_bandit_tag_js'));
     add_filter('content_edit_pre', array($this, 'filter_bandit_shortcode'), 10, 2);
     wp_register_style('bw_wpautop_fix', plugins_url('wpautop_fix.css', __FILE__) );
     wp_enqueue_style('bw_wpautop_fix');
@@ -188,7 +189,19 @@ class BayesianWitch{
     add_submenu_page('plugins.php', 'BayesianWitch plugin settings', 'BayesianWitch', 10, 'BayesianWitch', array($this, 'render_menu'));
   }
 
-  public function load_admin_stylesheet($hook){
+  public function add_bandit_tag_js($hook){
+    global $post;
+
+    if($hook == 'post-new.php' || $hook == 'post.php'){
+      $bandit_tag = get_post_meta($post->ID, '_bandit_tag');
+      if(empty($bandit_tag)){
+        wp_register_script('bw_bandit_tag_js', plugins_url('bandit_tag.js', __FILE__) );
+        wp_enqueue_script('bw_bandit_tag_js');
+      }
+    }
+  }
+
+  public function add_admin_stylesheet($hook){
     wp_register_style('bw_stylesheet', plugins_url('stylesheet.css', __FILE__) );
     wp_enqueue_style('bw_stylesheet');
   }
@@ -312,13 +325,14 @@ class BayesianWitch{
       if($post->post_title){
         $title = str_replace(' ', '_', $post->post_title);
         $title = preg_replace('/[^a-zA-Z0-9_]/', '', $title);
-        $bt = 'Bandit_'.$title.'_'.date('d_F_Y').'_p'.$post->ID;
+        $bandit_tag_default = 'Bandit_'.$title.'_'.date('d_F_Y').'_p'.$post->ID;
       }else{
-        $bt = 'Bandit_'.date('d_F_Y').'_p'.$post->ID;
+        $bandit_tag_default = 'Bandit_'.date('d_F_Y').'_p'.$post->ID;
       }
-      echo '<input class="input" type="text" name="bw-bandit-tag" value="'.$bt.'">';
+      echo '<input type="hidden" name="bw-bandit-tag" id="bw-bandit-tag-hidden" value="'.$bandit_tag_default.'">';
+      echo '<span class="input" id="bw-bandit-tag">'.$bandit_tag_default.'</span>';
     } else {
-      echo '<span class="input">'.$bandit_tag.'</span>';
+      echo '<span class="input" id="bw-bandit-tag">'.$bandit_tag.'</span>';
     }
     echo '<div class="clear"></div>';
 
