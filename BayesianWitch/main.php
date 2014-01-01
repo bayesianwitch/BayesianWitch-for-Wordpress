@@ -21,9 +21,11 @@ class BayesianWitch{
   private $site_uuid;
   private $api_key_needed_message;
   private $configuration_needed_message;
-
+  private $shortcode;
+  private $rss_cache = array();
 
   public function __construct(){
+    $this->shortcode = '{bandit}';
     $this->api_key_needed_message = "Please enter domain, client ID and secret ID. These can be found by creating an account on the <a href=\"http://www.bayesianwitch.com?source=wordpress\">BayesianWitch.com</a> site. Once an account is created, you create a site, then click the \"Reset and view API keys\" button.";
     $this->configuration_needed_message = '<a href="'.site_url().'/wp-admin/plugins.php?page=BayesianWitch">Click here</a> to configure BayesianWitch plugin';
 
@@ -35,7 +37,9 @@ class BayesianWitch{
     add_action('admin_menu', array($this, 'register_submenu'));
     add_action('admin_enqueue_scripts', array($this, 'add_admin_stylesheet'));
     add_action('admin_enqueue_scripts', array($this, 'add_bandit_tag_js'));
+    add_action('parse_query', array($this, 'init_rss_hooks'));
     add_filter('content_edit_pre', array($this, 'filter_bandit_shortcode'), 10, 2);
+
     wp_register_style('bw_wpautop_fix', plugins_url('wpautop_fix.css', __FILE__) );
     wp_enqueue_style('bw_wpautop_fix');
 
@@ -45,6 +49,14 @@ class BayesianWitch{
       add_filter('wp_insert_post_data', array($this, 'save_metadata'), '99', 2);
     } else {
       add_action('admin_notices', array($this, 'render_admin_error'));
+    }
+  }
+
+  public function init_rss_hooks(){
+    if(is_feed()){
+      add_filter('the_content_feed', array($this, 'filter_bandit_shortcode_rss'));
+      remove_filter('get_the_excerpt', 'wp_trim_excerpt');
+      add_filter('get_the_excerpt', array($this, 'filter_bandit_shortcode_rss'));
     }
   }
 
@@ -126,6 +138,12 @@ class BayesianWitch{
       return $uuid_response;
     }
     $url = $this->make_api_url('/bandits/'.$uuid_response.'/'.$bandit_tag);
+    $response = Curl::get($url);
+    return $response;
+  }
+
+  private function get_bandit_rss($bandit_uuid){
+    $url = 'http://recommend.bayesianwitch.com/bandit/'.$bandit_uuid.'?usage=rss&fingerprint=false';
     $response = Curl::get($url);
     return $response;
   }
@@ -263,9 +281,46 @@ class BayesianWitch{
   }
 
   public function filter_bandit_shortcode($content, $post_id){
-    $result = preg_replace('/<!--bandit-start-->.*?<!--bandit-end-->/is', '{bandit}', $content);
+    $result = preg_replace('/<!--bandit-start-->.*?<!--bandit-end-->/is', $this->shortcode, $content);
     return $result;
   }
+
+  public function filter_bandit_shortcode_rss($content){
+    global $post;
+    $is_rss = false;
+    $bandit_retrieved = false;
+    if(!$content){
+      $is_rss = true;
+      $content = $post->post_content;
+    }
+    if(isset($this->rss_cache[$post->ID])){ //without it we'd have to make every API call for both the excerpt and the full content
+      $result = $this->rss_cache[$post->ID];
+      $bandit_retrieved = true;
+    } else {
+      $search = '/<!--bandit-start-->.*?<!--bandit-end-->/is';
+      if(preg_match($search, $content)){
+        $bandit_tag = get_post_meta($post->ID, '_bandit_tag');
+        $response = $this->get_bandit($bandit_tag[0]);
+        if(!$this->get_api_error($response)){
+          $bandit = json_decode($response->body);
+          $rss_response = $this->get_bandit_rss($bandit->bandit->uuid);
+          if(!$this->get_api_error($rss_response)){
+            $result = preg_replace($search, $rss_response->body, $content);
+            $bandit_retrieved = true;
+            $this->rss_cache[$post->ID] = $result;
+          }
+        }
+      }
+    }
+    if(!$bandit_retrieved){
+      $result = preg_replace($search, '', $content);
+    }
+    if($is_rss){
+      $result = wp_trim_words($result);
+    }
+    return $result;
+  }
+
 
   public function add_tracking_js(){
     $js = get_option('bw_tracking_js');
@@ -319,7 +374,7 @@ class BayesianWitch{
       update_option('bw_validation_error', '');
     }
 
-    echo '<p>To embed a bandit put "{bandit}" somewhere in the post body.</p>';
+    echo '<p>To embed a bandit put "'.$this->shortcode.'" somewhere in the post body.</p>';
     echo '<h4>BANDIT_TAG</h4>';
     if(!$bandit_tag){
       if($post->post_title){
@@ -425,7 +480,7 @@ class BayesianWitch{
 
       if($bandit){
         $post_content = $_POST['post_content'];
-        if($update && preg_match('/\[bandit\]/', $post_content)){
+        if($update && strpos($post_content, $this->shortcode)){
           $response = $this->get_js_widget($bandit->bandit->uuid);
           if($error = $this->get_api_error($response)){
             update_option('bw_post_error', $error);
@@ -433,7 +488,7 @@ class BayesianWitch{
           }
           $js_widget = $response->body;
           $bandit_html = '<!--bandit-start--><div id="bw-container"><div id="'.$bandit->bandit->uuid.'"></div>'.'<script type="application/javascript">'.wp_slash($js_widget).'</script></div><!--bandit-end-->';
-          $post_content = str_replace('{bandit}', $bandit_html, $post_content);
+          $post_content = str_replace($this->shortcode, $bandit_html, $post_content);
           $post_san['post_content'] = $post_content;
         }
       }
