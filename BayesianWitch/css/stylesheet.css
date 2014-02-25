@@ -46,3 +46,27 @@
   border-style: solid;
   margin: 20px 0;
 }
+
+.bw-admin-title {
+  background-color: #FFFFFF;
+  font-size: 1.7em;
+  height: 1.7em;
+  line-height: 100%;
+  margin: 1px 0;
+  outline: 0 none;
+  padding: 3px 8px;
+  width: 89%;
+}
+
+.bw-admin-title-delete.button{
+  width: 9%;
+  height: 34px;
+  margin-top: 1px;
+  float: right;
+}
+
+.bw-admin-title-add.button{
+  float: right;
+  height: 34px;
+  margin-top: 10px;
+}

@@ -36,17 +36,21 @@ class BayesianWitch{
 
     add_action('admin_menu', array($this, 'register_submenu'));
     add_action('admin_enqueue_scripts', array($this, 'add_admin_stylesheet'));
-    add_action('admin_enqueue_scripts', array($this, 'add_bandit_tag_js'));
+    add_action('admin_enqueue_scripts', array($this, 'add_post_edit_js'));
     add_action('parse_query', array($this, 'init_rss_hooks'));
     add_filter('content_edit_pre', array($this, 'filter_bandit_shortcode'), 10, 2);
 
-    wp_register_style('bw_wpautop_fix', plugins_url('wpautop_fix.css', __FILE__) );
+    wp_register_style('bw_wpautop_fix', plugins_url('css/wpautop_fix.css', __FILE__) );
     wp_enqueue_style('bw_wpautop_fix');
 
     if($this->is_configured()){ //main functions don't work without credentials
       add_action('add_meta_boxes_post', array($this, 'add_bandit_meta_box'));
       add_action('wp_head', array($this, 'add_tracking_js'));
+      add_action('wp_footer', array($this, 'add_title_bandit_incoming_js'));
       add_filter('wp_insert_post_data', array($this, 'save_metadata'), '99', 2);
+      add_filter('wp_insert_post_data', array($this, 'save_bandit_title')); #todo: check if it can be replaced with add_action
+      add_filter('the_title', array($this, 'filter_title_bandit'), 99, 2);
+      add_action('edit_form_after_title', array($this, 'add_title_box_js'));
     } else {
       add_action('admin_notices', array($this, 'render_admin_error'));
     }
@@ -104,11 +108,17 @@ class BayesianWitch{
 
 
   private function get_auth_url_string(){
-    return '?'.http_build_query(array('client' => $this->get_client(), 'secret' => $this->get_secret()));
+    return http_build_query(array('client' => $this->get_client(), 'secret' => $this->get_secret()));
   }
 
   private function make_api_url($path){
-    return $this->api_full_url.$path.$this->get_auth_url_string();
+    $str = $this->api_full_url.$path;
+    if(preg_match('/\?/', $str)){
+      $del = '&';
+    } else {
+      $del = '?';
+    }
+    return $str.$del.$this->get_auth_url_string();
   }
 
   private function get_site_uuid(){
@@ -185,12 +195,12 @@ class BayesianWitch{
     return $result;
   }
 
-  private function send_bandit_update($data, $bandit_tag){
+  private function send_bandit_update($data, $bandit_tag, $additional_params = ''){
     $uuid_response = $this->get_site_uuid();
     if($this->get_api_error($uuid_response)){
       return $uuid_response;
     }
-    $url = $this->make_api_url('/bandits/'.$uuid_response.'/'.$bandit_tag);
+    $url = $this->make_api_url('/bandits/'.$uuid_response.'/'.$bandit_tag.$additional_params);
     $response = Curl::put_json($url, $data);
     return $response;
   }
@@ -207,20 +217,22 @@ class BayesianWitch{
     add_submenu_page('plugins.php', 'BayesianWitch plugin settings', 'BayesianWitch', 10, 'BayesianWitch', array($this, 'render_menu'));
   }
 
-  public function add_bandit_tag_js($hook){
+  public function add_post_edit_js($hook){
     global $post;
 
     if($hook == 'post-new.php' || $hook == 'post.php'){
       $bandit_tag = get_post_meta($post->ID, '_bandit_tag');
       if(empty($bandit_tag)){
-        wp_register_script('bw_bandit_tag_js', plugins_url('bandit_tag.js', __FILE__) );
+        wp_register_script('bw_bandit_tag_js', plugins_url('js/bandit_tag.js', __FILE__) );
         wp_enqueue_script('bw_bandit_tag_js');
       }
+      wp_register_script('bw_post_edit_main_js', plugins_url('js/post_edit_main.js', __FILE__) );
+      wp_enqueue_script('bw_post_edit_main_js');
     }
   }
 
   public function add_admin_stylesheet($hook){
-    wp_register_style('bw_stylesheet', plugins_url('stylesheet.css', __FILE__) );
+    wp_register_style('bw_stylesheet', plugins_url('css/stylesheet.css', __FILE__) );
     wp_enqueue_style('bw_stylesheet');
   }
 
@@ -321,11 +333,29 @@ class BayesianWitch{
     return $result;
   }
 
+  public function filter_title_bandit($name, $id){
+    global $post;
+    $bandit_title_tag = get_post_meta($post->ID, '_bandit_title_tag');
+    if(!empty($bandit_title_tag) && $post->ID == $id){
+      $bandit_title_tag = $bandit_title_tag[0];
+      $bandit_title_uuid = get_post_meta($post->ID, '_bandit_title_uuid');
+      if(!empty($bandit_title_uuid)){
+        $bandit_title_uuid = $bandit_title_uuid[0];
+        return '<span class="bw-title-incoming-nodisplay-inner" bw_title_bandit="'.$bandit_title_uuid.'">'.$name.'</span>';
+      }
+    }
+    return $name;
+  }
+
+  public function add_title_bandit_incoming_js(){
+    #todo: add caching
+    echo '<script type="application/javascript">'.file_get_contents('http://recommend.bayesianwitch.com/title/incoming/javascript').'</script>';
+  }
 
   public function add_tracking_js(){
     $js = get_option('bw_tracking_js');
     if(!$js){
-      $url = $this->api_full_url.'/sites/'.$this->get_domain().'/javascript'.$this->get_auth_url_string();
+      $url = $this->api_full_url.'/sites/'.$this->get_domain().'/javascript?'.$this->get_auth_url_string();
       $response = Curl::get($url);
       if(!$this->get_api_error($response)){
         $js = $response->body;
@@ -428,9 +458,79 @@ class BayesianWitch{
 
   }
 
+  public function add_title_box_js(){
+    global $post;
+    $bandit_title_tag = get_post_meta($post->ID, '_bandit_title_tag');
+    if(!empty($bandit_title_tag)){
+      $response = $this->get_bandit($bandit_title_tag[0]);
+      if(!$this->get_api_error($response)){
+        $bandit = json_decode($response->body);
+        echo '<script type="application/javascript">';
+        echo 'jQuery(document).ready(function(){';
+        foreach($bandit->variations as $variation){
+          if($variation->isActive == true && $variation->tag != 'MainTitle'){
+            echo 'bw_generate_title_box("'.$variation->contentAndType->content.'");';
+          }
+        }
+        echo '});';
+        echo '</script>';
+      }
+    }
+  }
+
+  public function save_bandit_title(){
+    global $post;
+    $bandit_title_tag = get_post_meta($post->ID, '_bandit_title_tag');
+    if(empty($bandit_title_tag)){
+      $bandit_title_tag = 'BanditTitle_'.date('d_F_Y').'_p'.$post->ID;
+      update_post_meta($post->ID, '_bandit_title_tag', $bandit_title_tag);
+    } else {
+      $bandit_title_tag = $bandit_title_tag[0];
+    }
+    $titles = array();
+    for($i=1;$i<1000;$i++){
+      if(isset($_POST['bw-title-'.$i])){
+        $titles[] = $_POST['bw-title-'.$i];
+      }
+    }
+    if(!empty($titles)){
+      $json = array();
+      $counter = 0;
+      foreach($titles as $title){
+        $counter++;
+        $json[] = array(
+          'tag' => 'TitleVariation'.$counter,
+          'isActive' => true,
+          'contentAndType' => array(
+            'content_type' => 'text/html',
+            'content' => $title
+          )
+        );
+      }
+      $json[] = array(
+        'tag' => 'MainTitle',
+        'isActive' => true,
+        'contentAndType' => array(
+          'content_type' => 'text/html',
+          'content' => $_POST['post_title']
+        )
+      );
+      $json = json_encode($json, JSON_UNESCAPED_SLASHES);
+
+      $response = $this->send_bandit_update($json, $bandit_title_tag, '?kind=title&url='.urlencode(get_permalink($post->ID)));
+      if(!$this->get_api_error($response)){
+        $bandit = json_decode($response->body);
+        update_post_meta($post->ID, '_bandit_title_uuid', $bandit->bandit->uuid);
+      }
+      #todo: display error
+//      if(!$this->get_api_error($response)){
+//
+//      }
+    }
+  }
+
   public function save_metadata($post_san, $post_raw){
     global $post;
-
     $post_id =  $post_raw['ID'];
     if(!$post) return $post_san; //return if it's an auto draft or revision
     if(defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return $post_san;
