@@ -29,7 +29,7 @@ class BayesianWitch{
     $this->api_key_needed_message = "Please enter domain, client ID and secret ID. These can be found by creating an account on the <a href=\"http://www.bayesianwitch.com?source=wordpress\">BayesianWitch.com</a> site. Once an account is created, you create a site, then click the \"Reset and view API keys\" button.";
     $this->configuration_needed_message = '<a href="'.site_url().'/wp-admin/plugins.php?page=BayesianWitch">Click here</a> to configure BayesianWitch plugin';
 
-    $this->js_widget_url = 'http://recommend.bayesianwitch.com';
+    $this->api_recommend_url = 'http://recommend.bayesianwitch.com';
     $this->api_url = 'http://api.bayesianwitch.com';
     $this->api_port = '8090';
     $this->api_full_url = $this->api_url.':'.$this->api_port;
@@ -48,9 +48,10 @@ class BayesianWitch{
       add_action('wp_head', array($this, 'add_tracking_js'));
       add_action('wp_footer', array($this, 'add_title_bandit_incoming_js'));
       add_filter('wp_insert_post_data', array($this, 'save_metadata'), '99', 2);
-      add_filter('wp_insert_post_data', array($this, 'save_bandit_title')); #todo: check if it can be replaced with add_action
+      add_action('wp_insert_post_data', array($this, 'save_bandit_title'));
       add_filter('the_title', array($this, 'filter_title_bandit'), 99, 2);
       add_action('edit_form_after_title', array($this, 'add_title_box_js'));
+      add_action('the_content', array($this, 'add_title_bandit_tracking_js'));
     } else {
       add_action('admin_notices', array($this, 'render_admin_error'));
     }
@@ -159,7 +160,7 @@ class BayesianWitch{
   }
 
   private function get_js_widget($bandit_uuid){
-    $url = $this->js_widget_url.'/js_widget/'.$bandit_uuid;
+    $url = $this->api_recommend_url.'/js_widget/'.$bandit_uuid;
     $response = Curl::get($url);
     return $response;
   }
@@ -334,11 +335,10 @@ class BayesianWitch{
   }
 
   public function filter_title_bandit($name, $id){
-    global $post;
-    $bandit_title_tag = get_post_meta($post->ID, '_bandit_title_tag');
-    if(!empty($bandit_title_tag) && $post->ID == $id){
+    $bandit_title_tag = get_post_meta($id, '_bandit_title_tag');
+    if(!empty($bandit_title_tag)){
       $bandit_title_tag = $bandit_title_tag[0];
-      $bandit_title_uuid = get_post_meta($post->ID, '_bandit_title_uuid');
+      $bandit_title_uuid = get_post_meta($id, '_bandit_title_uuid');
       if(!empty($bandit_title_uuid)){
         $bandit_title_uuid = $bandit_title_uuid[0];
         return '<span class="bw-title-incoming-nodisplay-inner" bw_title_bandit="'.$bandit_title_uuid.'">'.$name.'</span>';
@@ -347,9 +347,37 @@ class BayesianWitch{
     return $name;
   }
 
+  public function add_title_bandit_tracking_js($text){
+    global $post;
+    $data = get_transient('bw_title_bandit_tracking_js_'.$post->ID);
+    if($data === false){
+      $bandit_title_uuid = get_post_meta($post->ID, '_bandit_title_uuid');
+      if(!empty($bandit_title_uuid)){
+        $response = Curl::get($this->api_recommend_url.'/title/'.$bandit_title_uuid[0].'/javascript');
+        if(!$this->get_api_error($response)){
+          $data = $response->body;
+          set_transient('bw_title_bandit_tracking_js_'.$post->ID, $data);
+        }
+      }
+    }
+    if($data){
+      echo '<script type="application/javascript">'.$data.'</script>';
+    }
+    return $text;
+  }
+
   public function add_title_bandit_incoming_js(){
-    #todo: add caching
-    echo '<script type="application/javascript">'.file_get_contents('http://recommend.bayesianwitch.com/title/incoming/javascript').'</script>';
+    $data = get_transient('bw_title_bandit_incoming_js');
+    if($data === false){
+      $response = Curl::get($this->api_recommend_url.'/title/incoming/javascript');
+      if(!$this->get_api_error($response)){
+        $data = $response->body;
+        set_transient('bw_title_bandit_incoming_js', $data, 12 * HOUR_IN_SECONDS);
+      }
+    }
+    if($data){
+      echo '<script type="application/javascript">'.$data.'</script>';
+    }
   }
 
   public function add_tracking_js(){
