@@ -349,6 +349,7 @@ class BayesianWitch{
 
   public function add_title_bandit_tracking_js($text){
     global $post;
+    if(!is_single()) return $text;
     $data = get_transient('bw_title_bandit_tracking_js_'.$post->ID);
     if($data === false){
       $bandit_title_uuid = get_post_meta($post->ID, '_bandit_title_uuid');
