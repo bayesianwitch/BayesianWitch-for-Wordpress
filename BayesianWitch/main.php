@@ -506,10 +506,11 @@ class BayesianWitch{
     }
   }
 
-  public function save_bandit_title(){
+  public function save_bandit_title($post_san){
     global $post;
+    if(!$post) return $post_san;
     $bandit_title_tag = get_post_meta($post->ID, '_bandit_title_tag');
-    if(empty($bandit_title_tag)){
+    if(!$bandit_title_tag || empty($bandit_title_tag)){
       $bandit_title_tag = 'BanditTitle_'.date('d_F_Y').'_p'.$post->ID;
       update_post_meta($post->ID, '_bandit_title_tag', $bandit_title_tag);
     } else {
@@ -550,6 +551,7 @@ class BayesianWitch{
         $bandit = json_decode($response->body);
         update_post_meta($post->ID, '_bandit_title_uuid', $bandit->bandit->uuid);
       }
+      return $post_san;
       #todo: display error
 //      if(!$this->get_api_error($response)){
 //
