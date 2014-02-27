@@ -155,7 +155,7 @@ class BayesianWitch{
   }
 
   private function get_bandit_rss($bandit_uuid){
-    $url = 'http://recommend.bayesianwitch.com/bandit/'.$bandit_uuid.'?usage=rss&fingerprint=false';
+    $url = $this->api_recommend_url.'/bandit/'.$bandit_uuid.'?usage=rss&fingerprint=false';
     $response = Curl::get($url);
     return $response;
   }
