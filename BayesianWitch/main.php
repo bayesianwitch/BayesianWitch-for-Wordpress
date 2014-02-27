@@ -62,6 +62,7 @@ class BayesianWitch{
       add_filter('the_content_feed', array($this, 'filter_bandit_shortcode_rss'));
       remove_filter('get_the_excerpt', 'wp_trim_excerpt');
       add_filter('get_the_excerpt', array($this, 'filter_bandit_shortcode_rss'));
+      add_filter('the_title_rss', array($this, 'filter_title_bandit_rss'));
     }
   }
 
@@ -334,15 +335,23 @@ class BayesianWitch{
     return $result;
   }
 
-  public function filter_title_bandit($name, $id){
-    $bandit_title_tag = get_post_meta($id, '_bandit_title_tag');
-    if(!empty($bandit_title_tag)){
-      $bandit_title_tag = $bandit_title_tag[0];
-      $bandit_title_uuid = get_post_meta($id, '_bandit_title_uuid');
-      if(!empty($bandit_title_uuid)){
-        $bandit_title_uuid = $bandit_title_uuid[0];
-        return '<span class="bw-title-incoming-nodisplay-inner" bw_title_bandit="'.$bandit_title_uuid.'">'.$name.'</span>';
+  public function filter_title_bandit_rss($name){
+    global $post;
+    $bandit_title_uuid = get_post_meta($post->ID, '_bandit_title_uuid');
+    if(!empty($bandit_title_uuid)){
+      $rss_response = $this->get_bandit_rss($bandit_title_uuid[0]);
+      if(!$this->get_api_error($rss_response)){
+        return $rss_response->body;
       }
+    }
+    return $name;
+  }
+
+  public function filter_title_bandit($name, $id){
+    $bandit_title_uuid = get_post_meta($id, '_bandit_title_uuid');
+    if(!empty($bandit_title_uuid)){
+      $bandit_title_uuid = $bandit_title_uuid[0];
+      return '<span class="bw-title-incoming-nodisplay-inner" bw_title_bandit="'.$bandit_title_uuid.'">'.$name.'</span>';
     }
     return $name;
   }
@@ -510,13 +519,6 @@ class BayesianWitch{
   public function save_bandit_title($post_san){
     global $post;
     if(!$post) return $post_san;
-    $bandit_title_tag = get_post_meta($post->ID, '_bandit_title_tag');
-    if(!$bandit_title_tag || empty($bandit_title_tag)){
-      $bandit_title_tag = 'BanditTitle_'.date('d_F_Y').'_p'.$post->ID;
-      update_post_meta($post->ID, '_bandit_title_tag', $bandit_title_tag);
-    } else {
-      $bandit_title_tag = $bandit_title_tag[0];
-    }
     $titles = array();
     for($i=1;$i<1000;$i++){
       if(isset($_POST['bw-title-'.$i])){
@@ -524,6 +526,13 @@ class BayesianWitch{
       }
     }
     if(!empty($titles)){
+      $bandit_title_tag = get_post_meta($post->ID, '_bandit_title_tag');
+      if(!$bandit_title_tag || empty($bandit_title_tag)){
+        $bandit_title_tag = 'BanditTitle_'.date('d_F_Y').'_p'.$post->ID;
+        update_post_meta($post->ID, '_bandit_title_tag', $bandit_title_tag);
+      } else {
+        $bandit_title_tag = $bandit_title_tag[0];
+      }
       $json = array();
       $counter = 0;
       foreach($titles as $title){
