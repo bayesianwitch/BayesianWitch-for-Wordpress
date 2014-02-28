@@ -1,13 +1,17 @@
 <?php
   /*
   Plugin Name: BayesianWitch
-  Version: 0.2
+  Version: 0.3
   Description: -
   Author: Vladymir Goryachev
   */
 
+  //todo: remove it
   // Client ID: bc232af6-8609-4e5f-a24a-7231ff7e14e5
   // Client Secret: 2d35ffd0-f072-4644-bcf9-d94f91e51734
+//ini_set('display_errors',1);
+//ini_set('display_startup_errors',1);
+//error_reporting(-1);
 
 require_once 'curl.php';
 
@@ -37,13 +41,11 @@ class BayesianWitch{
     add_action('admin_menu', array($this, 'register_submenu'));
     add_action('admin_enqueue_scripts', array($this, 'add_admin_stylesheet'));
     add_action('admin_enqueue_scripts', array($this, 'add_post_edit_js'));
-    add_action('parse_query', array($this, 'init_rss_hooks'));
+    add_action('wp_enqueue_scripts', array($this, 'enqueue_wpautofix_p_css'));
     add_filter('content_edit_pre', array($this, 'filter_bandit_shortcode'), 10, 2);
 
-    wp_register_style('bw_wpautop_fix', plugins_url('css/wpautop_fix.css', __FILE__) );
-    wp_enqueue_style('bw_wpautop_fix');
-
     if($this->is_configured()){ //main functions don't work without credentials
+      add_action('parse_query', array($this, 'init_rss_hooks'));
       add_action('add_meta_boxes_post', array($this, 'add_bandit_meta_box'));
       add_action('wp_head', array($this, 'add_tracking_js'));
       add_action('wp_footer', array($this, 'add_title_bandit_incoming_js'));
@@ -216,7 +218,7 @@ class BayesianWitch{
   }
 
   public function register_submenu(){
-    add_submenu_page('plugins.php', 'BayesianWitch plugin settings', 'BayesianWitch', 10, 'BayesianWitch', array($this, 'render_menu'));
+    add_submenu_page('plugins.php', 'BayesianWitch plugin settings', 'BayesianWitch', 'manage_options', 'BayesianWitch', array($this, 'render_menu'));
   }
 
   public function add_post_edit_js($hook){
@@ -231,6 +233,11 @@ class BayesianWitch{
       wp_register_script('bw_post_edit_main_js', plugins_url('js/post_edit_main.js', __FILE__) );
       wp_enqueue_script('bw_post_edit_main_js');
     }
+  }
+
+  public function enqueue_wpautofix_p_css(){
+    wp_register_style('bw_wpautop_fix', plugins_url('css/wpautop_fix.css', __FILE__) );
+    wp_enqueue_style('bw_wpautop_fix');
   }
 
   public function add_admin_stylesheet($hook){
