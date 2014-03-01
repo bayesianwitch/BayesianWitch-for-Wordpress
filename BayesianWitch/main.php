@@ -13,7 +13,7 @@
 //ini_set('display_startup_errors',1);
 //error_reporting(-1);
 
-require_once 'curl.php';
+require_once 'remote.php';
 
 class BayesianWitch{
   private $client;
@@ -125,12 +125,13 @@ class BayesianWitch{
     return $str.$del.$this->get_auth_url_string();
   }
 
+  //returns an object in case of error or a string with uuid on success
   private function get_site_uuid(){
     if(!isset($this->site_uuid)){
       if(!$this->site_uuid = get_option('bw_site_uuid')){
         $url = $this->make_api_url('/sites/'.$this->get_domain().'/');
-        $response = Curl::get($url);
-        if($this->get_api_error($response)){
+        $response = Remote::get($url);
+        if($response->get_error()){
           return $response;
         }
         $json = json_decode($response->body);
@@ -148,23 +149,23 @@ class BayesianWitch{
 
   private function get_bandit($bandit_tag){
     $uuid_response = $this->get_site_uuid();
-    if($this->get_api_error($uuid_response)){
+    if(is_object($uuid_response)){
       return $uuid_response;
     }
     $url = $this->make_api_url('/bandits/'.$uuid_response.'/'.$bandit_tag);
-    $response = Curl::get($url);
+    $response = Remote::get($url);
     return $response;
   }
 
   private function get_bandit_rss($bandit_uuid){
     $url = $this->api_recommend_url.'/bandit/'.$bandit_uuid.'?usage=rss&fingerprint=false';
-    $response = Curl::get($url);
+    $response = Remote::get($url);
     return $response;
   }
 
   private function get_js_widget($bandit_uuid){
     $url = $this->api_recommend_url.'/js_widget/'.$bandit_uuid;
-    $response = Curl::get($url);
+    $response = Remote::get($url);
     return $response;
   }
 
@@ -187,13 +188,13 @@ class BayesianWitch{
   private function get_credentials_and_domain_errors(){
     $result = array();
     $url_credentials = $this->make_api_url('/client/check_credentials');
-    $response = Curl::get($url_credentials);
-    if($error = $this->get_api_error($response)){
+    $response = Remote::get($url_credentials);
+    if($error = $response->get_error()){
       $result['credentials'] = $error;
     }
     $url_domain = $this->make_api_url('/sites/'.$this->get_domain());
-    $response = Curl::get($url_domain);
-    if($error = $this->get_api_error($response)){
+    $response = Remote::get($url_domain);
+    if($error = $response->get_error()){
       $result['domain'] = $error;
     }
     return $result;
@@ -201,11 +202,11 @@ class BayesianWitch{
 
   private function send_bandit_update($data, $bandit_tag, $additional_params = ''){
     $uuid_response = $this->get_site_uuid();
-    if($this->get_api_error($uuid_response)){
+    if(is_object($uuid_response)){
       return $uuid_response;
     }
     $url = $this->make_api_url('/bandits/'.$uuid_response.'/'.$bandit_tag.$additional_params);
-    $response = Curl::put_json($url, $data);
+    $response = Remote::put_json($url, $data);
     return $response;
   }
 
@@ -322,10 +323,10 @@ class BayesianWitch{
       if(preg_match($search, $content)){
         $bandit_tag = get_post_meta($post->ID, '_bandit_tag');
         $response = $this->get_bandit($bandit_tag[0]);
-        if(!$this->get_api_error($response)){
+        if(!$response->get_error()){
           $bandit = json_decode($response->body);
           $rss_response = $this->get_bandit_rss($bandit->bandit->uuid);
-          if(!$this->get_api_error($rss_response)){
+          if(!$rss_response->get_error()){
             $result = preg_replace($search, $rss_response->body, $content);
             $bandit_retrieved = true;
             $this->rss_cache[$post->ID] = $result;
@@ -347,7 +348,7 @@ class BayesianWitch{
     $bandit_title_uuid = get_post_meta($post->ID, '_bandit_title_uuid');
     if(!empty($bandit_title_uuid)){
       $rss_response = $this->get_bandit_rss($bandit_title_uuid[0]);
-      if(!$this->get_api_error($rss_response)){
+      if(!$rss_response->get_error()){
         return $rss_response->body;
       }
     }
@@ -370,8 +371,8 @@ class BayesianWitch{
     if($data === false){
       $bandit_title_uuid = get_post_meta($post->ID, '_bandit_title_uuid');
       if(!empty($bandit_title_uuid)){
-        $response = Curl::get($this->api_recommend_url.'/title/'.$bandit_title_uuid[0].'/javascript');
-        if(!$this->get_api_error($response)){
+        $response = Remote::get($this->api_recommend_url.'/title/'.$bandit_title_uuid[0].'/javascript');
+        if(!$response->get_error()){
           $data = $response->body;
           set_transient('bw_title_bandit_tracking_js_'.$post->ID, $data);
         }
@@ -386,8 +387,8 @@ class BayesianWitch{
   public function add_title_bandit_incoming_js(){
     $data = get_transient('bw_title_bandit_incoming_js');
     if($data === false){
-      $response = Curl::get($this->api_recommend_url.'/title/incoming/javascript');
-      if(!$this->get_api_error($response)){
+      $response = Remote::get($this->api_recommend_url.'/title/incoming/javascript');
+      if(!$response->get_error()){
         $data = $response->body;
         set_transient('bw_title_bandit_incoming_js', $data, 12 * HOUR_IN_SECONDS);
       }
@@ -401,8 +402,8 @@ class BayesianWitch{
     $js = get_option('bw_tracking_js');
     if(!$js){
       $url = $this->api_full_url.'/sites/'.$this->get_domain().'/javascript?'.$this->get_auth_url_string();
-      $response = Curl::get($url);
-      if(!$this->get_api_error($response)){
+      $response = Remote::get($url);
+      if(!$response->get_error()){
         $js = $response->body;
         update_option('bw_tracking_js', $js);
       }
@@ -436,7 +437,7 @@ class BayesianWitch{
 
     if($bandit_tag){
       $response = $this->get_bandit($bandit_tag);
-      if($error = $this->get_api_error($response)){
+      if($error = $response->get_error()){
         if(isset($post_error_message) && $post_error_message) return; // previous error message was displayed, we don't need 2 similar errors to be shown at the same time
         echo '<div class="bw-error-box">'.$error.'</div>';
         return;
@@ -508,7 +509,7 @@ class BayesianWitch{
     $bandit_title_tag = get_post_meta($post->ID, '_bandit_title_tag');
     if(!empty($bandit_title_tag)){
       $response = $this->get_bandit($bandit_title_tag[0]);
-      if(!$this->get_api_error($response)){
+      if(!$response->get_error()){
         $bandit = json_decode($response->body);
         echo '<script type="application/javascript">';
         echo 'jQuery(document).ready(function(){';
@@ -564,7 +565,7 @@ class BayesianWitch{
       $json = json_encode($json, JSON_UNESCAPED_SLASHES);
 
       $response = $this->send_bandit_update($json, $bandit_title_tag, '?kind=title&url='.urlencode(get_permalink($post->ID)));
-      if(!$this->get_api_error($response)){
+      if(!$response->get_error()){
         $bandit = json_decode($response->body);
         update_post_meta($post->ID, '_bandit_title_uuid', $bandit->bandit->uuid);
       }
@@ -612,7 +613,7 @@ class BayesianWitch{
       $json = json_encode($json, JSON_UNESCAPED_SLASHES);
       if($update){
         $response = $this->send_bandit_update($json, $bandit_tag);
-        if($error = $this->get_api_error($response)){
+        if($error = $response->get_error()){
           update_option('bw_post_error', $error);
           return $post_san;
         }
@@ -629,7 +630,7 @@ class BayesianWitch{
         $post_content = $_POST['post_content'];
         if($update && strpos($post_content, $this->shortcode)){
           $response = $this->get_js_widget($bandit->bandit->uuid);
-          if($error = $this->get_api_error($response)){
+          if($error = $response->get_error()){
             update_option('bw_post_error', $error);
             return $post_san;
           }
