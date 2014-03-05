@@ -1,0 +1,8 @@
+/*wpautop fix*/
+#bw-container > p {
+    margin: 0;
+}
+
+.bw-title-incoming-nodisplay {
+  visibility: hidden;
+}

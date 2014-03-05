@@ -39,9 +39,9 @@ class BayesianWitch{
     $this->api_full_url = $this->api_url.':'.$this->api_port;
 
     add_action('admin_menu', array($this, 'register_submenu'));
-    add_action('admin_enqueue_scripts', array($this, 'add_admin_stylesheet'));
-    add_action('admin_enqueue_scripts', array($this, 'add_post_edit_js'));
-    add_action('wp_enqueue_scripts', array($this, 'enqueue_wpautofix_p_css'));
+    add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_css'));
+    add_action('admin_enqueue_scripts', array($this, 'enqueue_post_edit_js'));
+    add_action('wp_enqueue_scripts', array($this, 'enqueue_all_pages_css'));
     add_filter('content_edit_pre', array($this, 'filter_bandit_shortcode'), 10, 2);
 
     if($this->is_configured()){ //main functions don't work without credentials
@@ -222,7 +222,7 @@ class BayesianWitch{
     add_submenu_page('plugins.php', 'BayesianWitch plugin settings', 'BayesianWitch', 'manage_options', 'BayesianWitch', array($this, 'render_menu'));
   }
 
-  public function add_post_edit_js($hook){
+  public function enqueue_post_edit_js($hook){
     global $post;
 
     if($hook == 'post-new.php' || $hook == 'post.php'){
@@ -236,13 +236,13 @@ class BayesianWitch{
     }
   }
 
-  public function enqueue_wpautofix_p_css(){
-    wp_register_style('bw_wpautop_fix', plugins_url('css/wpautop_fix.css', __FILE__) );
+  public function enqueue_all_pages_css(){
+    wp_register_style('bw_wpautop_fix', plugins_url('css/all_pages.css', __FILE__) );
     wp_enqueue_style('bw_wpautop_fix');
   }
 
-  public function add_admin_stylesheet($hook){
-    wp_register_style('bw_stylesheet', plugins_url('css/stylesheet.css', __FILE__) );
+  public function enqueue_admin_css($hook){
+    wp_register_style('bw_stylesheet', plugins_url('css/admin.css', __FILE__) );
     wp_enqueue_style('bw_stylesheet');
   }
 
