@@ -72,3 +72,11 @@
   background: #428bca;
   color: #ffffff;
 }
+
+.bw-admin-title-add.button:focus{
+  float: right;
+  height: 34px;
+  margin-top: 10px;
+  background: #2B7292;
+  color: #ffffff;
+}
