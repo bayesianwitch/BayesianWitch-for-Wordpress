@@ -48,6 +48,7 @@ class BayesianWitch{
       add_action('parse_query', array($this, 'init_rss_hooks'));
       add_action('add_meta_boxes_post', array($this, 'add_bandit_meta_box'));
       add_action('wp_head', array($this, 'add_tracking_js'));
+      add_action('wp_head', array($this, 'add_incoming_nodisplay_css'));
       add_action('wp_footer', array($this, 'add_title_bandit_incoming_js'));
       add_filter('wp_insert_post_data', array($this, 'save_metadata'), '99', 2);
       add_action('wp_insert_post_data', array($this, 'save_bandit_title'));
@@ -396,6 +397,14 @@ class BayesianWitch{
     if($data){
       echo '<script type="application/javascript">'.$data.'</script>';
     }
+  }
+
+  public function add_incoming_nodisplay_css(){
+    echo '<style type="text/css">
+            .bw-title-incoming-nodisplay {
+              visibility: hidden;
+            }
+          </style>';
   }
 
   public function add_tracking_js(){
