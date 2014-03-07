@@ -359,7 +359,7 @@ class BayesianWitch{
     $bandit_title_uuid = get_post_meta($id, '_bandit_title_uuid');
     if(!empty($bandit_title_uuid)){
       $bandit_title_uuid = $bandit_title_uuid[0];
-      return '<span class="bw-title-incoming-nodisplay-inner" bw_title_bandit="'.$bandit_title_uuid.'">'.$name.'</span>';
+      return '<span class="bw-title-incoming-nodisplay" bw_title_bandit="'.$bandit_title_uuid.'">'.$name.'</span>';
     }
     return $name;
   }
