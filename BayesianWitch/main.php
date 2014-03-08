@@ -539,7 +539,7 @@ class BayesianWitch{
     $titles = array();
     for($i=1;$i<1000;$i++){
       if(isset($_POST['bw-title-'.$i])){
-        $titles[] = $_POST['bw-title-'.$i];
+        $titles[] = stripslashes($_POST['bw-title-'.$i]);
       }
     }
     if(!empty($titles)){
@@ -568,7 +568,7 @@ class BayesianWitch{
         'isActive' => true,
         'contentAndType' => array(
           'content_type' => 'text/html',
-          'content' => $_POST['post_title']
+          'content' => stripslashes($_POST['post_title'])
         )
       );
       $json = json_encode($json, JSON_UNESCAPED_SLASHES);
@@ -577,6 +577,7 @@ class BayesianWitch{
       if(!$response->get_error()){
         $bandit = json_decode($response->body);
         update_post_meta($post->ID, '_bandit_title_uuid', $bandit->bandit->uuid);
+        delete_transient('bw_title_bandit_tracking_js_'.$post->ID);
       }
       return $post_san;
       #todo: display error
