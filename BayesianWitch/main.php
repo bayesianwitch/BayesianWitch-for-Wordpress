@@ -524,7 +524,7 @@ class BayesianWitch{
         echo 'jQuery(document).ready(function(){';
         foreach($bandit->variations as $variation){
           if($variation->isActive == true && $variation->tag != 'MainTitle'){
-            echo 'bw_generate_title_box("'.htmlspecialchars($variation->contentAndType->content).'");';
+            echo 'bw_generate_title_box("'.wp_slash(htmlspecialchars($variation->contentAndType->content)).'");';
           }
         }
         echo '});';
