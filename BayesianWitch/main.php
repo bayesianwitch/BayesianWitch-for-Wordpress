@@ -524,7 +524,7 @@ class BayesianWitch{
         echo 'jQuery(document).ready(function(){';
         foreach($bandit->variations as $variation){
           if($variation->isActive == true && $variation->tag != 'MainTitle'){
-            echo 'bw_generate_title_box("'.wp_slash(htmlspecialchars($variation->contentAndType->content)).'");';
+            echo 'bw_generate_title_box("'.wp_slash(htmlspecialchars($variation->contentAndType->content)).'", "'.wp_slash(htmlspecialchars($variation->tag)).'");';
           }
         }
         echo '});';
@@ -537,9 +537,10 @@ class BayesianWitch{
     global $post;
     if(!$post) return $post_san;
     $titles = array();
-    for($i=1;$i<1000;$i++){
-      if(isset($_POST['bw-title-'.$i])){
-        $titles[] = stripslashes($_POST['bw-title-'.$i]);
+    if(isset($_POST['bw-titles'])){
+      foreach($_POST['bw-titles'] as $tag=>$title){
+        //stripslashes is used here to remove escaping added by WP's magic quotes
+        $titles[stripslashes($tag)] = stripslashes($title);
       }
     }
     if(!empty($titles)){
@@ -551,11 +552,9 @@ class BayesianWitch{
         $bandit_title_tag = $bandit_title_tag[0];
       }
       $json = array();
-      $counter = 0;
-      foreach($titles as $title){
-        $counter++;
+      foreach($titles as $tag=>$title){
         $json[] = array(
-          'tag' => 'TitleVariation'.$counter,
+          'tag' => $tag,
           'isActive' => true,
           'contentAndType' => array(
             'content_type' => 'text/html',
