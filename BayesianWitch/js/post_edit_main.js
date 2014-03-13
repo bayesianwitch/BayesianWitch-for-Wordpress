@@ -31,5 +31,5 @@ function bw_generate_add_button(){
 }
 
 function get_random_tag(){
-  return 'TitleVariation_'+'00000000000000000000'.split('').map(function(){return 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(62*Math.random()));}).join('');
+  return 'TitleVariation_'+'0000000000'.split('').map(function(){return 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(62*Math.random()));}).join('');
 }

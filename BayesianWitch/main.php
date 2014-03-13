@@ -375,7 +375,7 @@ class BayesianWitch{
         $response = Remote::get($this->api_recommend_url.'/title/'.$bandit_title_uuid[0].'/javascript');
         if(!$response->get_error()){
           $data = $response->body;
-          set_transient('bw_title_bandit_tracking_js_'.$post->ID, $data);
+          set_transient('bw_title_bandit_tracking_js_'.$post->ID, $data, 15 * MINUTE_IN_SECONDS);
         }
       }
     }
