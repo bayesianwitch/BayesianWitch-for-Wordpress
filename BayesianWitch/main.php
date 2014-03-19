@@ -35,7 +35,7 @@ class BayesianWitch{
 
     $this->api_recommend_url = 'http://recommend.bayesianwitch.com';
     $this->api_url = 'http://api.bayesianwitch.com';
-    $this->api_port = '8090';
+    $this->api_port = '80';
     $this->api_full_url = $this->api_url.':'.$this->api_port;
 
     add_action('admin_menu', array($this, 'register_submenu'));
