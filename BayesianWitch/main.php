@@ -535,6 +535,7 @@ class BayesianWitch{
 
   public function save_bandit_title($post_san){
     global $post;
+    error_log("abcdefg");
     if(!$post) return $post_san;
     $titles = array();
     if(isset($_POST['bw-titles'])){
@@ -583,6 +584,8 @@ class BayesianWitch{
 //      if(!$this->get_api_error($response)){
 //
 //      }
+    } else {
+      return $post_san;
     }
   }
 
