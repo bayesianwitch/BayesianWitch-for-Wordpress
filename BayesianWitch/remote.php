@@ -1,24 +1,24 @@
 <?php
 
-class Remote{
+class BayesianWitchRemote{
   private static $default_args = array('user-agent' => 'BayesianWitch Wordpress Call-to-Action tester');
 
   public static function get($url){
-    $response = new Response(wp_remote_get($url, Remote::$default_args));
+    $response = new BayesianWitchResponse(wp_remote_get($url, BayesianWitchRemote::$default_args));
     return $response;
   }
 
   public static function put_json($url, $data){
-    $args = Remote::$default_args;
+    $args = BayesianWitchRemote::$default_args;
     $args['headers'] = array('Content-Type' => 'application/json', 'Content-Length' => strlen($data));
     $args['method'] = 'PUT';
     $args['body'] = $data;
-    $response = new Response(wp_remote_request($url, $args));
+    $response = new BayesianWitchResponse(wp_remote_request($url, $args));
     return $response;
   }
 }
 
-class Response{
+class BayesianWitchResponse{
   public $body;
   public $headers;
   public $response;

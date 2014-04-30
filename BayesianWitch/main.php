@@ -131,7 +131,7 @@ class BayesianWitch{
     if(!isset($this->site_uuid)){
       if(!$this->site_uuid = get_option('bw_site_uuid')){
         $url = $this->make_api_url('/sites/'.$this->get_domain().'/');
-        $response = Remote::get($url);
+        $response = BayesianWitchRemote::get($url);
         if($response->get_error()){
           return $response;
         }
@@ -154,19 +154,19 @@ class BayesianWitch{
       return $uuid_response;
     }
     $url = $this->make_api_url('/bandits/'.$uuid_response.'/'.$bandit_tag);
-    $response = Remote::get($url);
+    $response = BayesianWitchRemote::get($url);
     return $response;
   }
 
   private function get_bandit_rss($bandit_uuid){
     $url = $this->api_recommend_url.'/bandit/'.$bandit_uuid.'?usage=rss&fingerprint=false';
-    $response = Remote::get($url);
+    $response = BayesianWitchRemote::get($url);
     return $response;
   }
 
   private function get_js_widget($bandit_uuid){
     $url = $this->api_recommend_url.'/js_widget/'.$bandit_uuid;
-    $response = Remote::get($url);
+    $response = BayesianWitchRemote::get($url);
     return $response;
   }
 
@@ -189,12 +189,12 @@ class BayesianWitch{
   private function get_credentials_and_domain_errors(){
     $result = array();
     $url_credentials = $this->make_api_url('/client/check_credentials');
-    $response = Remote::get($url_credentials);
+    $response = BayesianWitchRemote::get($url_credentials);
     if($error = $response->get_error()){
       $result['credentials'] = $error;
     }
     $url_domain = $this->make_api_url('/sites/'.$this->get_domain());
-    $response = Remote::get($url_domain);
+    $response = BayesianWitchRemote::get($url_domain);
     if($error = $response->get_error()){
       $result['domain'] = $error;
     }
@@ -207,7 +207,7 @@ class BayesianWitch{
       return $uuid_response;
     }
     $url = $this->make_api_url('/bandits/'.$uuid_response.'/'.$bandit_tag.$additional_params);
-    $response = Remote::put_json($url, $data);
+    $response = BayesianWitchRemote::put_json($url, $data);
     return $response;
   }
 
@@ -372,7 +372,7 @@ class BayesianWitch{
     if($data === false){
       $bandit_title_uuid = get_post_meta($post->ID, '_bandit_title_uuid');
       if(!empty($bandit_title_uuid)){
-        $response = Remote::get($this->api_recommend_url.'/title/'.$bandit_title_uuid[0].'/javascript');
+        $response = BayesianWitchRemote::get($this->api_recommend_url.'/title/'.$bandit_title_uuid[0].'/javascript');
         if(!$response->get_error()){
           $data = $response->body;
           set_transient('bw_title_bandit_tracking_js_'.$post->ID, $data, 15 * MINUTE_IN_SECONDS);
@@ -388,7 +388,7 @@ class BayesianWitch{
   public function add_title_bandit_incoming_js(){
     $data = get_transient('bw_title_bandit_incoming_js');
     if($data === false){
-      $response = Remote::get($this->api_recommend_url.'/title/incoming/javascript');
+      $response = BayesianWitchRemote::get($this->api_recommend_url.'/title/incoming/javascript');
       if(!$response->get_error()){
         $data = $response->body;
         set_transient('bw_title_bandit_incoming_js', $data, 12 * HOUR_IN_SECONDS);
@@ -411,7 +411,7 @@ class BayesianWitch{
     $js = get_option('bw_tracking_js');
     if(!$js){
       $url = $this->api_full_url.'/sites/'.$this->get_domain().'/javascript?'.$this->get_auth_url_string();
-      $response = Remote::get($url);
+      $response = BayesianWitchRemote::get($url);
       if(!$response->get_error()){
         $js = $response->body;
         update_option('bw_tracking_js', $js);
