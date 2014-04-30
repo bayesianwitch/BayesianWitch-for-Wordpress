@@ -535,7 +535,6 @@ class BayesianWitch{
 
   public function save_bandit_title($post_san){
     global $post;
-    error_log("abcdefg");
     if(!$post) return $post_san;
     $titles = array();
     if(isset($_POST['bw-titles'])){
@@ -571,7 +570,7 @@ class BayesianWitch{
           'content' => stripslashes($_POST['post_title'])
         )
       );
-      $json = json_encode($json, JSON_UNESCAPED_SLASHES);
+      $json = json_encode($json, 'JSON_UNESCAPED_SLASHES');
 
       $response = $this->send_bandit_update($json, $bandit_title_tag, '?kind=title&url='.urlencode(get_permalink($post->ID)));
       if(!$response->get_error()){
@@ -622,7 +621,7 @@ class BayesianWitch{
       $json = array();
       $json[] = array('tag' => $bandit_tag1, 'isActive' => true, 'contentAndType' => array('content_type' => 'text/html', 'content' => $bandit_body1));
       $json[] = array('tag' => $bandit_tag2, 'isActive' => true, 'contentAndType' => array('content_type' => 'text/html', 'content' => $bandit_body2));
-      $json = json_encode($json, JSON_UNESCAPED_SLASHES);
+      $json = json_encode($json, 'JSON_UNESCAPED_SLASHES');
       if($update){
         $response = $this->send_bandit_update($json, $bandit_tag);
         if($error = $response->get_error()){
