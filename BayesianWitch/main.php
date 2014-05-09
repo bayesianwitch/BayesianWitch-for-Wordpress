@@ -570,7 +570,7 @@ class BayesianWitch{
           'content' => stripslashes($_POST['post_title'])
         )
       );
-      $json = json_encode($json, 'JSON_UNESCAPED_SLASHES');
+      $json = $this->bw_json_encode($json);
 
       $response = $this->send_bandit_update($json, $bandit_title_tag, '?kind=title&url='.urlencode(get_permalink($post->ID)));
       if(!$response->get_error()){
@@ -586,6 +586,14 @@ class BayesianWitch{
     } else {
       return $post_san;
     }
+  }
+
+  private function bw_json_encode($json) {
+      if (defined('JSON_UNESCAPED_SLASHES')) {
+        return json_encode($json, JSON_UNESCAPED_SLASHES);
+      } else {
+        return json_encode($json);
+      }
   }
 
   public function save_metadata($post_san, $post_raw){
@@ -621,7 +629,7 @@ class BayesianWitch{
       $json = array();
       $json[] = array('tag' => $bandit_tag1, 'isActive' => true, 'contentAndType' => array('content_type' => 'text/html', 'content' => $bandit_body1));
       $json[] = array('tag' => $bandit_tag2, 'isActive' => true, 'contentAndType' => array('content_type' => 'text/html', 'content' => $bandit_body2));
-      $json = json_encode($json, 'JSON_UNESCAPED_SLASHES');
+      $json = $this->bw_json_encode($json);
       if($update){
         $response = $this->send_bandit_update($json, $bandit_tag);
         if($error = $response->get_error()){
