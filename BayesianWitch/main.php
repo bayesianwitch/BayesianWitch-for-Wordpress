@@ -543,49 +543,42 @@ class BayesianWitch{
         $titles[stripslashes($tag)] = stripslashes($title);
       }
     }
-    if(!empty($titles)){
-      $bandit_title_tag = get_post_meta($post->ID, '_bandit_title_tag');
-      if(!$bandit_title_tag || empty($bandit_title_tag)){
-        $bandit_title_tag = 'BanditTitle_'.date('d_F_Y').'_p'.$post->ID;
-        update_post_meta($post->ID, '_bandit_title_tag', $bandit_title_tag);
-      } else {
-        $bandit_title_tag = $bandit_title_tag[0];
-      }
-      $json = array();
-      foreach($titles as $tag=>$title){
-        $json[] = array(
-          'tag' => $tag,
-          'isActive' => true,
-          'contentAndType' => array(
-            'content_type' => 'text/html',
-            'content' => $title
-          )
-        );
-      }
+
+    $bandit_title_tag = get_post_meta($post->ID, '_bandit_title_tag');
+    if(!$bandit_title_tag || empty($bandit_title_tag)){
+      $bandit_title_tag = 'BanditTitle_'.date('d_F_Y').'_p'.$post->ID;
+      update_post_meta($post->ID, '_bandit_title_tag', $bandit_title_tag);
+    } else {
+      $bandit_title_tag = $bandit_title_tag[0];
+    }
+    $json = array();
+    foreach($titles as $tag=>$title){
       $json[] = array(
-        'tag' => 'MainTitle',
+        'tag' => $tag,
         'isActive' => true,
         'contentAndType' => array(
           'content_type' => 'text/html',
-          'content' => stripslashes($_POST['post_title'])
+          'content' => $title
         )
       );
-      $json = $this->bw_json_encode($json);
-
-      $response = $this->send_bandit_update($json, $bandit_title_tag, '?kind=title&url='.urlencode(get_permalink($post->ID)));
-      if(!$response->get_error()){
-        $bandit = json_decode($response->body);
-        update_post_meta($post->ID, '_bandit_title_uuid', $bandit->bandit->uuid);
-        delete_transient('bw_title_bandit_tracking_js_'.$post->ID);
-      }
-      return $post_san;
-      #todo: display error
-//      if(!$this->get_api_error($response)){
-//
-//      }
-    } else {
-      return $post_san;
     }
+    $json[] = array(
+      'tag' => 'MainTitle',
+      'isActive' => true,
+      'contentAndType' => array(
+        'content_type' => 'text/html',
+        'content' => stripslashes($_POST['post_title'])
+      )
+    );
+    $json = $this->bw_json_encode($json);
+
+    $response = $this->send_bandit_update($json, $bandit_title_tag, '?kind=title&url='.urlencode(get_permalink($post->ID)));
+    if(!$response->get_error()){
+      $bandit = json_decode($response->body);
+      update_post_meta($post->ID, '_bandit_title_uuid', $bandit->bandit->uuid);
+      delete_transient('bw_title_bandit_tracking_js_'.$post->ID);
+    }
+    return $post_san;
   }
 
   private function bw_json_encode($json) {
