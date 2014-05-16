@@ -33,6 +33,11 @@
         jQuery('#bw-add-button-wrap').before(html);
     };
 
+    window.bw_display_title_statistics = function (titleTag, domain) {
+        var html = '<div><a href="http://www.bayesianwitch.com/wordpress/site_dashboard/' + domain + '/title_stats/' + titleTag + '">View statistics</a></div>';
+        jQuery('#bw-add-button-wrap').before(html);
+    };
+
 
     var bw_generate_add_button = function(){
         var html = '<div id="bw-add-button-wrap"><input type="button" class="bw-admin-title-add button" value="Add title variation">' +

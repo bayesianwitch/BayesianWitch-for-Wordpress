@@ -527,6 +527,8 @@ class BayesianWitch{
             echo 'bw_generate_title_box("'.wp_slash(htmlspecialchars($variation->contentAndType->content)).'", "'.wp_slash(htmlspecialchars($variation->tag)).'");';
           }
         }
+        echo 'bw_display_title_statistics("'.$bandit->bandit->tag.'", "'.$bandit->bandit->site->domain.'");';
+        echo 'console.log("'.$bandit->bandit->tag.'" +  "'.$bandit->bandit->site->domain.'");';
         echo '});';
         echo '</script>';
       }
