@@ -546,6 +546,10 @@ class BayesianWitch{
       }
     }
 
+    if (empty($titles) && !isset($_POST['post_title'])) { //We want to make the PUT request except when the user is not tfrying to change titles at all (e.g. post deletion)
+      return $post_san;
+    }
+
     $bandit_title_tag = get_post_meta($post->ID, '_bandit_title_tag');
     if(!$bandit_title_tag || empty($bandit_title_tag)){
       $bandit_title_tag = 'BanditTitle_'.date('d_F_Y').'_p'.$post->ID;
