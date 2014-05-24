@@ -603,6 +603,9 @@ class BayesianWitch{
     if(defined('DOING_AJAX') && DOING_AJAX) return $post_san;
     if(!current_user_can('edit_post', $post_id)) return $post_san;
     if(false !== wp_is_post_revision($post_id)) return $post_san;
+    if (count($_POST) == 0) { //This probably means we are deleting the post
+      return $post_san;
+    }
 
     $bandit_tag_meta = get_post_meta($post->ID, '_bandit_tag');
     if($bandit_tag_meta){ // if already exists
