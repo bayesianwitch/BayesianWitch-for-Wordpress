@@ -51,6 +51,7 @@ class BayesianWitch{
     add_filter('content_edit_pre', array($this, 'filter_bandit_shortcode'), 10, 2);
 
     $this->initialize_defaults();
+    $this->do_phone_home();
 
     if($this->is_configured()){ //main functions don't work without credentials
       add_action('parse_query', array($this, 'init_rss_hooks'));
@@ -119,7 +120,29 @@ class BayesianWitch{
     $this->flush_site_uuid();
   }
 
-  public function get_initialized_defaults(){
+  private function get_phoned_home() {
+    if (!isset($this->phoned_home)) {
+      $this->phoned_home = get_option('bayesianwitch_phoned_home');
+    }
+    return $this->phoned_home;
+  }
+
+  private function do_phone_home() {
+    if ($this->get_phoned_home() == "true") {
+      return null;
+    }
+    $response = BayesianWitchRemote::get('http://www.bayesianwitch.com/t/plugin_phone_home/'.$this->plugin_download_code);
+    if($response->get_error()){
+      return null;
+    }
+    if ($response->http_code != 200) {
+      return null;
+    }
+    update_option('bayesianwitch_phoned_home', "true");
+    $this->phoned_home = "true";
+  }
+
+  private function get_initialized_defaults(){
     if (!isset($this->initialized_defaults)) {
       $this->initialized_defaults = get_option('bayesianwitch_initialized_defaults');
     }
@@ -138,6 +161,7 @@ class BayesianWitch{
         $this->set_domain($this->plugin_default_domain);
       }
       update_option('bayesianwitch_initialized_defaults', "true");
+      $this->initialized_defaults = "true";
     }
   }
 
