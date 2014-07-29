@@ -28,6 +28,12 @@ class BayesianWitch{
   private $shortcode;
   private $rss_cache = array();
 
+  // Variables for templating
+  private $plugin_download_code = "{{plugin_tracking_code}}";
+  private $plugin_default_domain = "{{default_domain}}";
+  private $plugin_default_client_id = "{{default_client_id}}";
+  private $plugin_default_client_secret = "{{default_client_secret}}";
+
   public function __construct(){
     $this->shortcode = '{bandit}';
     $this->api_key_needed_message = "Please enter domain, client ID and secret ID. These can be found by creating an account on the <a href=\"http://www.bayesianwitch.com?source=wordpress\">BayesianWitch.com</a> site. Once an account is created, you create a site, then click the \"Reset and view API keys\" button.";
@@ -43,6 +49,8 @@ class BayesianWitch{
     add_action('admin_enqueue_scripts', array($this, 'enqueue_post_edit_js'));
     add_action('wp_enqueue_scripts', array($this, 'enqueue_all_pages_css'));
     add_filter('content_edit_pre', array($this, 'filter_bandit_shortcode'), 10, 2);
+
+    $this->initialize_defaults();
 
     if($this->is_configured()){ //main functions don't work without credentials
       add_action('parse_query', array($this, 'init_rss_hooks'));
@@ -111,6 +119,27 @@ class BayesianWitch{
     $this->flush_site_uuid();
   }
 
+  public function get_initialized_defaults(){
+    if (!isset($this->initialized_defaults)) {
+      $this->initialized_defaults = get_option('bayesianwitch_initialized_defaults');
+    }
+    return $this->initialized_defaults;
+  }
+
+  private function initialize_defaults() {
+    if (!$this->get_initialized_defaults() == "true") {
+      if ($this->plugin_default_client_secret != "{" . "{default_client_secret}" . "}") {
+        $this->set_secret($this->plugin_default_client_secret);
+      }
+      if ($this->plugin_default_client_id != "{" . "{default_client_id}" . "}") {
+        $this->set_client($this->plugin_default_client_id);
+      }
+      if ($this->plugin_default_domain != "{". "{default_domain}". "}") {
+        $this->set_domain($this->plugin_default_domain);
+      }
+      update_option('bayesianwitch_initialized_defaults', "true");
+    }
+  }
 
   private function get_auth_url_string(){
     return http_build_query(array('client' => $this->get_client(), 'secret' => $this->get_secret()));
